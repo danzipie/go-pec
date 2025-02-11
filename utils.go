@@ -1,25 +1,36 @@
 package main
 
 import (
-	"log"
+	"bytes"
+	"encoding/base64"
+	"fmt"
 	"os"
-
-	"github.com/emersion/go-message"
+	"strings"
 )
 
 // readEmail reads and parses an .eml file, extracting headers, body, and attachments
-func readEmail(filePath string) *message.Entity {
-	// Open the .eml file
-	file, err := os.Open(filePath)
+func readEmail(filePath string) []byte {
+	// Read the EML file
+	emlData, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Fatal("Failed to open file:", err)
+		fmt.Println("Error reading file:", err)
+		return nil
 	}
-	defer file.Close()
+	return emlData
+}
 
-	// Create a new message reader
-	decoder, err := message.Read(file)
+// decodeBase64IfNeeded checks if the signature is base64 encoded and decodes it
+func decodeBase64IfNeeded(data []byte) []byte {
+	encoded := strings.TrimSpace(string(data))
+
+	decoded, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		log.Fatal("Failed to read email:", err)
+		fmt.Println("Error decoding base64:", err)
+		return data
 	}
-	return decoder
+	return decoded
+}
+
+func normalizeLineEndings(data []byte) []byte {
+	return bytes.ReplaceAll(data, []byte("\n"), []byte("\r\n"))
 }

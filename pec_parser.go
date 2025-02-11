@@ -1,13 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"encoding/xml"
 	"fmt"
 	"io"
 	"log"
+	"mime"
+	"mime/multipart"
+	"net/mail"
 	"strings"
-
-	"github.com/emersion/go-message"
 )
 
 // Function to parse DatiCert XML
@@ -26,7 +28,7 @@ func parseDatiCertXML(content string) (*DatiCert, error) {
 }
 
 // reads PEC-specific headers from the email
-func extractPECHeaders(header *message.Header, pecMail *PECMail) {
+func extractPECHeaders(header *mail.Header, pecMail *PECMail) {
 	pecHeaders := []string{
 		"X-Riferimento-Message-ID",
 		"Return-Path",
@@ -58,61 +60,66 @@ func extractPECHeaders(header *message.Header, pecMail *PECMail) {
 
 // Function to parse the mixed part of the email
 // Should contain the daticert.xml
-func parseMixedPart(entity *message.Entity) *DatiCert {
+func parseMixedPart(partData []byte, boundary string) *DatiCert {
 
-	mr := entity.MultipartReader()
-	if mr == nil {
-		panic("Not a multipart message")
-	}
+	reader := multipart.NewReader(bytes.NewReader(partData), boundary)
 
 	for {
-		part, err := mr.NextPart()
+		part, err := reader.NextPart()
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			break
+			fmt.Println("Error reading multipart:", err)
+			return nil
 		}
 
-		mediaType, _, err := part.Header.ContentType()
-		if err != nil {
-			panic(err)
-		}
-		if strings.HasPrefix(mediaType, "multipart/alternative") {
-			log.Println("multipart/alternative detected")
-		} else if strings.HasPrefix(mediaType, "application/xml") {
-			log.Println("application/xml detected")
-			// print the body
-			b, err := io.ReadAll(part.Body)
+		partMediaType, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		partData, _ := io.ReadAll(part)
+
+		if partMediaType == "multipart/alternative" {
+			// log.Println("multipart/alternative detected")
+		} else if partMediaType == "application/xml" {
+			decoded := decodeBase64IfNeeded(partData)
+			datiCert, err := parseDatiCertXML(string(decoded))
 			if err != nil {
-			}
-			datiCert, err := parseDatiCertXML(string(b))
-			if err != nil {
+				fmt.Println("Error parsing daticert.xml:", err)
 			}
 			return datiCert
 
-		} else if strings.HasPrefix(mediaType, "message/rfc822") {
-			log.Println("message/rfc822 detected")
+		} else if partMediaType == "message/rfc822" {
+			// log.Println("message/rfc822 detected")
 		} else {
-			_, err := io.ReadAll(part.Body)
-			if err != nil {
-				panic(err)
-			}
+			// log.Println("Unknown part type detected")
 		}
 	}
+
 	return nil
 
 }
 
 // Function to parse the PEC email
 // Extracts the envelope and the daticert.xml
-func parsePec(entity *message.Entity) (*PECMail, *DatiCert, error) {
+func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 
 	pecMail := &PECMail{}
 	datiCert := &DatiCert{}
 
+	// Get the content type
+	contentType := msg.Header.Get("Content-Type")
+	mediaType, params, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		fmt.Println("Error parsing content type:", err)
+		return pecMail, datiCert, err
+	}
+
+	if mediaType != "multipart/signed" {
+		fmt.Println("Email is not a signed S/MIME message")
+		return pecMail, datiCert, err
+	}
+
 	// Read headers
-	header := entity.Header
+	header := msg.Header
 	pecMail.Envelope.From = header.Get("From")
 	pecMail.Envelope.To = header.Get("To")
 	pecMail.Envelope.Subject = header.Get("Subject")
@@ -124,24 +131,29 @@ func parsePec(entity *message.Entity) (*PECMail, *DatiCert, error) {
 		return nil, nil, fmt.Errorf("not a pec")
 	}
 
-	mr := entity.MultipartReader()
-	if mr == nil {
-		panic("Not a multipart message")
-	}
+	// Parse multipart content
+	mr := multipart.NewReader(msg.Body, params["boundary"])
 
-	part, err := mr.NextPart()
-	if err != nil {
-		panic(err)
-	}
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			fmt.Println("Error reading multipart:", err)
+			return pecMail, datiCert, err
+		}
 
-	mediaType, _, err := part.Header.ContentType()
-	if err != nil {
-		panic(err)
-	}
+		partMediaType, params, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
+		partData, _ := io.ReadAll(part)
 
-	if strings.HasPrefix(mediaType, "multipart/mixed") {
-		log.Println("multipart/mixed detected")
-		datiCert = parseMixedPart(part)
+		if partMediaType == "multipart/mixed" {
+			log.Println("multipart/mixed detected")
+			datiCert = parseMixedPart(partData, params["boundary"])
+			if datiCert == nil {
+				return nil, nil, fmt.Errorf("failed to parse mixed part")
+			}
+		}
 	}
 
 	// cross-check the extracted data

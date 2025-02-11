@@ -2,13 +2,11 @@ package main
 
 import (
 	"bytes"
-	"encoding/base64"
 	"fmt"
 	"io"
 	"mime"
 	"mime/multipart"
 	"net/mail"
-	"strings"
 
 	"go.mozilla.org/pkcs7"
 )
@@ -85,20 +83,4 @@ func validateSMIMESignature(emlData []byte) bool {
 
 	fmt.Println("S/MIME signature is valid!")
 	return true
-}
-
-// decodeBase64IfNeeded checks if the signature is base64 encoded and decodes it
-func decodeBase64IfNeeded(data []byte) []byte {
-	encoded := strings.TrimSpace(string(data))
-
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil {
-		fmt.Println("Error decoding base64:", err)
-		return data
-	}
-	return decoded
-}
-
-func normalizeLineEndings(data []byte) []byte {
-	return bytes.ReplaceAll(data, []byte("\n"), []byte("\r\n"))
 }

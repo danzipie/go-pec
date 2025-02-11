@@ -1,18 +1,30 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/mail"
 )
 
 func main() {
 
-	// read email
-	email := readEmail("test_mails/email1.eml")
+	filename := "test_mails/email1.eml"
+	emlData := readEmail(filename)
+	if emlData == nil {
+		fmt.Printf("Error reading file %s", filename)
+		return
+	}
+
+	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	if err != nil {
+		fmt.Println("Error parsing email:", err)
+		return
+	}
 
 	// parse email
-	pecMail, datiCert, e := parsePec(email)
+	pecMail, datiCert, e := parsePec(msg)
 	if e != nil {
 		log.Fatalf("failed to parse email: %v", e)
 	}

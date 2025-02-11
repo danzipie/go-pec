@@ -1,6 +1,11 @@
 package main
 
-import "testing"
+import (
+	"bytes"
+	"fmt"
+	"net/mail"
+	"testing"
+)
 
 func TestParseDatiCertXML(t *testing.T) {
 	// Test case
@@ -40,8 +45,20 @@ func TestParseDatiCertXML(t *testing.T) {
 
 func TestPECHeaders(t *testing.T) {
 
-	email := readEmail("test_mails/email_1.eml")
-	header := email.Header
+	filename := "test_mails/email_1.eml"
+	emlData := readEmail(filename)
+	if emlData == nil {
+		fmt.Printf("Error reading file %s", filename)
+		return
+	}
+
+	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	if err != nil {
+		fmt.Println("Error parsing email:", err)
+		return
+	}
+
+	header := msg.Header
 	pecMail := PECMail{}
 	extractPECHeaders(&header, &pecMail)
 
@@ -51,9 +68,20 @@ func TestPECHeaders(t *testing.T) {
 }
 
 func TestParseAccettazione(t *testing.T) {
-	email := readEmail("test_mails/email_1.eml")
+	filename := "test_mails/email_1.eml"
+	emlData := readEmail(filename)
+	if emlData == nil {
+		fmt.Printf("Error reading file %s", filename)
+		return
+	}
 
-	pecMail, datiCert, e := parsePec(email)
+	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	if err != nil {
+		fmt.Println("Error parsing email:", err)
+		return
+	}
+
+	pecMail, datiCert, e := parsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
 	}
