@@ -99,3 +99,45 @@ func TestParseAccettazione(t *testing.T) {
 	}
 
 }
+
+func TestParseDelivery(t *testing.T) {
+	filename := "test_mails/email2.eml"
+	emlData := readEmail(filename)
+	if emlData == nil {
+		fmt.Printf("Error reading file %s", filename)
+		return
+	}
+
+	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	if err != nil {
+		fmt.Println("Error parsing email:", err)
+		return
+	}
+
+	_, _, e := parsePec(msg)
+	if e != nil {
+		t.Fatalf("failed to parse email: %v", e)
+	}
+
+}
+
+func TestParseCertifiedEmail(t *testing.T) {
+	filename := "test_mails/email3.eml"
+	emlData := readEmail(filename)
+	if emlData == nil {
+		fmt.Printf("Error reading file %s", filename)
+		return
+	}
+
+	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	if err != nil {
+		fmt.Println("Error parsing email:", err)
+		return
+	}
+
+	_, _, e := parsePec(msg)
+	if e != nil {
+		t.Fatalf("failed to parse email: %v", e)
+	}
+
+}

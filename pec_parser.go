@@ -36,6 +36,7 @@ func extractPECHeaders(header *mail.Header, pecMail *PECMail) {
 		"Received",
 		"X-Ricevuta",
 		"Message-ID",
+		"X-Trasporto",
 	}
 
 	pecMail.PecType = None
@@ -45,9 +46,11 @@ func extractPECHeaders(header *mail.Header, pecMail *PECMail) {
 			if h == "X-Ricevuta" {
 				if strings.Contains(value, "accettazione") {
 					pecMail.PecType = AcceptanceReceipt
-				} else if strings.Contains(value, "consegna") {
+				} else if strings.Contains(value, "avvenuta-consegna") {
 					pecMail.PecType = DeliveryReceipt
-				} else if strings.Contains(value, "posta certificata") {
+				}
+			} else if h == "X-Trasporto" {
+				if strings.Contains(value, "posta-certificata") {
 					pecMail.PecType = CertifiedEmail
 				}
 			}
@@ -158,9 +161,9 @@ func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 
 	// cross-check the extracted data
 	if (pecMail.PecType == AcceptanceReceipt && datiCert.Tipo != "accettazione") ||
-		(pecMail.PecType == DeliveryReceipt && datiCert.Tipo != "consegna") ||
-		(pecMail.PecType == CertifiedEmail && datiCert.Tipo != "posta certificata") {
-		return nil, nil, fmt.Errorf("mismatch between PEC type and DatiCert type")
+		(pecMail.PecType == DeliveryReceipt && datiCert.Tipo != "avvenuta-consegna") ||
+		(pecMail.PecType == CertifiedEmail && datiCert.Tipo != "posta-certificata") {
+		return nil, nil, fmt.Errorf("mismatch between PEC type and DatiCert type: %d vs %s", pecMail.PecType, datiCert.Tipo)
 	}
 
 	return pecMail, datiCert, nil
