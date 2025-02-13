@@ -17,6 +17,7 @@ const (
 	None PecType = iota
 	CertifiedEmail
 	DeliveryReceipt
+	DeliveryErrorReceipt
 	AcceptanceReceipt
 )
 
@@ -38,7 +39,7 @@ type DatiCert struct {
 			Val  string `xml:",chardata"`
 		} `xml:"destinatari"`
 		Risposta string `xml:"risposte"`
-		Ogggetto string `xml:"oggetto"`
+		Oggetto  string `xml:"oggetto"`
 	} `xml:"intestazione"`
 	Dati struct {
 		GestoreEmittente string `xml:"gestore-emittente"`
@@ -49,5 +50,6 @@ type DatiCert struct {
 		} `xml:"data"`
 		Identificativo string `xml:"identificativo"`
 		MsgID          string `xml:"msgid"`
+		ErroreEsteso   string `xml:"errore-esteso"`
 	} `xml:"dati"`
 }

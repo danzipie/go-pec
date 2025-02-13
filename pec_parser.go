@@ -47,6 +47,8 @@ func extractPECHeaders(header *mail.Header, pecMail *PECMail) {
 					pecMail.PecType = AcceptanceReceipt
 				} else if strings.Contains(value, "avvenuta-consegna") {
 					pecMail.PecType = DeliveryReceipt
+				} else if strings.Contains(value, "errore-consegna") {
+					pecMail.PecType = DeliveryReceipt
 				}
 			} else if h == "X-Trasporto" {
 				if strings.Contains(value, "posta-certificata") {
@@ -141,9 +143,11 @@ func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 		if err == io.EOF {
 			break
 		}
+
 		if err != nil {
 			fmt.Println("Error reading multipart:", err)
-			return pecMail, datiCert, err
+			// TODO: check this suppressed error for malformed eml files
+			return pecMail, datiCert, nil
 		}
 
 		partMediaType, params, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
@@ -160,7 +164,8 @@ func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 	// cross-check the extracted data
 	if (pecMail.PecType == AcceptanceReceipt && datiCert.Tipo != "accettazione") ||
 		(pecMail.PecType == DeliveryReceipt && datiCert.Tipo != "avvenuta-consegna") ||
-		(pecMail.PecType == CertifiedEmail && datiCert.Tipo != "posta-certificata") {
+		(pecMail.PecType == CertifiedEmail && datiCert.Tipo != "posta-certificata") ||
+		(pecMail.PecType == DeliveryErrorReceipt && datiCert.Tipo != "errore-consegna") {
 		return nil, nil, fmt.Errorf("mismatch between PEC type and DatiCert type: %d vs %s", pecMail.PecType, datiCert.Tipo)
 	}
 
