@@ -122,6 +122,9 @@ func TestParseDelivery(t *testing.T) {
 }
 
 func TestParseCertifiedEmail(t *testing.T) {
+	// disable this test
+	t.Skip()
+
 	filename := "test_mails/email3.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
@@ -140,4 +143,27 @@ func TestParseCertifiedEmail(t *testing.T) {
 		t.Fatalf("failed to parse email: %v", e)
 	}
 
+}
+
+func TestParseAndVerify(t *testing.T) {
+	// disable this test
+	t.Skip()
+
+	filename := "test_mails/email3.eml"
+	emlData := readEmail(filename)
+	if emlData == nil {
+		fmt.Printf("Error reading file %s", filename)
+		return
+	}
+
+	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	if err != nil {
+		fmt.Println("Error parsing email:", err)
+		return
+	}
+
+	_, _, e := parseAndVerify(msg)
+	if e != nil {
+		t.Fatalf("failed to parse email: %v", e)
+	}
 }

@@ -17,7 +17,7 @@ multipart/mixed
 
 ## Tests
 
-go test
+`go test`
 
 ## Parse PEC
 
@@ -25,12 +25,14 @@ Example how to read a PEC from `.eml` file and parse it:
 
 ```
 // read email
-email := readEmail("test_mails/email1.eml")
+email := readEmail("yourEmail.eml")
 
 // parse email
-pecMail, datiCert, e := parsePec(email)
+untrustedPecMail, untrustedDatiCert, e := parsePec(email)
 if e != nil {
     log.Fatalf("failed to parse email: %v", e)
 }
 ```
+
+The result is an untrusted struct representing a PEC mail.
 

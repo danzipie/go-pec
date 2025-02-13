@@ -5,7 +5,6 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
-	"log"
 	"mime"
 	"mime/multipart"
 	"net/mail"
@@ -151,7 +150,6 @@ func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 		partData, _ := io.ReadAll(part)
 
 		if partMediaType == "multipart/mixed" {
-			log.Println("multipart/mixed detected")
 			datiCert = parseMixedPart(partData, params["boundary"])
 			if datiCert == nil {
 				return nil, nil, fmt.Errorf("failed to parse mixed part")
@@ -164,6 +162,30 @@ func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 		(pecMail.PecType == DeliveryReceipt && datiCert.Tipo != "avvenuta-consegna") ||
 		(pecMail.PecType == CertifiedEmail && datiCert.Tipo != "posta-certificata") {
 		return nil, nil, fmt.Errorf("mismatch between PEC type and DatiCert type: %d vs %s", pecMail.PecType, datiCert.Tipo)
+	}
+
+	return pecMail, datiCert, nil
+}
+
+func parseAndVerify(msg *mail.Message) (*PECMail, *DatiCert, error) {
+	pecMail, datiCert, err := parsePec(msg)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// convert msg to a byte array
+	buf := new(bytes.Buffer)
+	_, err = buf.ReadFrom(msg.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// convert buf to a byte array
+	emlData := buf.Bytes()
+
+	valid := validateSMIMESignature(emlData)
+	if !valid {
+		return nil, nil, err
 	}
 
 	return pecMail, datiCert, nil
