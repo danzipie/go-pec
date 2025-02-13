@@ -83,7 +83,7 @@ func TestParseDatiCertXMLErroreEsteso(t *testing.T) {
 
 func TestPECHeaders(t *testing.T) {
 
-	filename := "test_mails/email_1.eml"
+	filename := "test/resources/accettazione.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
@@ -100,13 +100,13 @@ func TestPECHeaders(t *testing.T) {
 	pecMail := PECMail{}
 	extractPECHeaders(&header, &pecMail)
 
-	if header.Get("X-Riferimento-Message-ID") != "<CZPXCJRZKQDRVYXFAZYUIAWNACDAAHEVAEXAKN@example.com>" {
-		t.Errorf("expected <CZPXCJRZKQDRVYXFAZYUIAWNACDAAHEVAEXAKN@example.com>, got %s", header.Get("X-Riferimento-Message-ID"))
+	if header.Get("X-Riferimento-Message-ID") != "<SN05IE$951DEC16C1CFD3E4FD8FF1B1D24A99AE@fakepec.it>" {
+		t.Errorf("expected <SN05IE$951DEC16C1CFD3E4FD8FF1B1D24A99AE@fakepec.it>, got %s", header.Get("X-Riferimento-Message-ID"))
 	}
 }
 
 func TestParseAccettazione(t *testing.T) {
-	filename := "test_mails/email_1.eml"
+	filename := "test/resources/accettazione.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
@@ -132,14 +132,14 @@ func TestParseAccettazione(t *testing.T) {
 		t.Errorf("expected nessuno, got %s", datiCert.Errore)
 	}
 
-	if datiCert.Intestazione.Mittente != "sender@example.com" {
-		t.Errorf("expected sender@example.com got %s", datiCert.Intestazione.Mittente)
+	if datiCert.Intestazione.Mittente != "sender@fakepec.it" {
+		t.Errorf("expected sender@fakepec.it got %s", datiCert.Intestazione.Mittente)
 	}
 
 }
 
 func TestParseDelivery(t *testing.T) {
-	filename := "test_mails/email2.eml"
+	filename := "test/resources/email_2.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
@@ -160,7 +160,7 @@ func TestParseDelivery(t *testing.T) {
 }
 
 func TestParseDeliveryError(t *testing.T) {
-	filename := "test_mails/consegna.eml"
+	filename := "test/resources/consegna.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
@@ -184,7 +184,7 @@ func TestParseCertifiedEmail(t *testing.T) {
 	// disable this test
 	t.Skip()
 
-	filename := "test_mails/email3.eml"
+	filename := "test/resources/email_3.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
@@ -208,7 +208,7 @@ func TestParseAndVerify(t *testing.T) {
 	// disable this test
 	t.Skip()
 
-	filename := "test_mails/email3.eml"
+	filename := "test/resources/email_3.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)

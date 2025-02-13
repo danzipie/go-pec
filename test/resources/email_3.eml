@@ -1,0 +1,132 @@
+Return-Path: <no-reply@example.com>
+Delivered-To: no-reply@example.com
+Received: from example.example.com (localhost [127.0.0.1])
+	by example.example.com (lmtpd) with LMTP id 26301.002;
+	Fri, 14 May 2021 12:02:12 +0200 (CEST)
+Received: from example.example.com (localhost [127.0.0.1])
+	by example.example.com (Postfix) with ESMTP id 4Fws
+	for <no-reply@example.com>; Fri, 14 May 2021 12:02:09 +0200 (CEST)
+Received: from example.example.com (example.example.com [127.0.0.1])
+	(using TLSv1.2 with cipher AECDH-AES256-SHA (256/256 bits))
+	(No client certificate requested)
+	by example.example.com (Postfix) with ESMTPS
+	for <no-reply@example.com>; Fri, 14 May 2021 12:02:09 +0200 (CEST)
+Received: from example.example.com (localhost [127.0.0.1])
+	by example.example.com (Postfix) with ESMTP id 4XD
+	for <no-reply@example.com>; Fri, 14 May 2021 12:02:08 +0200 (CEST)
+Date: Fri, 14 May 2021 12:02:08 +0200
+X-Trasporto: posta-certificata
+X-Riferimento-Message-ID: <CZPXCJRZKQDRVYXFAZYUIAWNACDAEXAKN@example.com>
+From: "Per conto di: no-reply@example.com" <no-reply@example.com>
+Received: from example (example.example.com [127.0.0.1])	by
+ example.example.com (Postfix) with ESMTPSA id 4Wk	for
+ <no-reply@example.com>; Fri, 14 May 2021 12:02:08 +0200 (CEST)
+X-Tiporicevuta: completa
+To: no-reply@example.com
+Subject: POSTA CERTIFICATA: POSTA CERTIFICATA: EXAMPLE
+Reply-To: no-reply@example.com
+MIME-Version: 1.0
+Content-Type: multipart/signed; protocol="application/pkcs7-signature"; micalg="sha-256"; boundary="----B4AB3697AC6503157C6A512A44E9D900"
+Message-ID: <CZPXCJRZKQDRVYXFAZYUIAWNACDAAHEVAEXAKN@example.com>
+
+This is an S/MIME signed message
+
+------B4AB3697AC6503157C6A512A44E9D900
+Content-Type: multipart/mixed; boundary="----------=_1620986528-13931-424"
+Content-Transfer-Encoding: binary
+MIME-Version: 1.0
+
+------------=_1620986528-13931-424
+Content-Type: multipart/alternative;
+ boundary="----------=_1620986528-13931-425"
+Content-Transfer-Encoding: binary
+
+------------=_1620986528-13931-425
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Disposition: inline
+Content-Transfer-Encoding: quoted-printable
+
+--Questo =E8 un Messaggio di Posta Certificata--
+
+Il giorno 14/05/2021 alle ore 12:02:08 (+0200) il messaggio con Oggetto
+"POSTA CERTIFICATA: EXAMPLE" =E8 stato inviato dal mittente "example.......=
+t"
+e indirizzato a:
+no-reply@example.com
+Il messaggio originale =E8 incluso in allegato, per aprirlo cliccare sul fi=
+le "postacert.eml" (nella webmail o in alcuni client di posta l'allegato po=
+trebbe avere come nome l'oggetto del messaggio originale).
+L'allegato daticert.xml contiene informazioni di servizio sulla trasmissione
+L'identificativo univoco di questo messaggio =E8: 3746376473647364736473647=
+8347837483748
+
+
+
+------------=_1620986528-13931-425
+Content-Type: text/html; charset="iso-8859-1"
+Content-Disposition: inline
+Content-Transfer-Encoding: quoted-printable
+
+<html>
+<head><title>Messaggio di posta certificata</title></head>
+<body>
+<h3>Messaggio di posta certificata</h3>
+<hr><br>
+Il giorno 14/05/2021 alle ore 12:02:08 (+0200) il messaggio<br>
+&quot;POSTA CERTIFICATA: EXAMPLEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE =
+17570|171811054]&quot; &egrave; stato inviato da &quot;example-example-exam=
+ple.com&quot;<br>
+indirizzato a:<br>
+no-reply@example.com<br>
+<br>
+Il messaggio originale &egrave; incluso in allegato.<br>
+Identificativo messaggio: CZPXCJRZKQDRVYXFAZYUIAWNACDAAHEVAEXAKNFFFFFFFFFFF=
+.com<br>
+<br>
+
+</body>
+</html>
+
+------------=_1620986528-13931-425--
+
+------------=_1620986528-13931-424
+Content-Type: application/xml; name="daticert.xml"
+Content-Disposition: inline; filename="daticert.xml"
+Content-Transfer-Encoding: base64
+
+PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHBvc3RhY2VydCB0aXBvPSJwb3N0YS1jZXJ0aWZpY2F0YSIgZXJyb3JlPSJuZXNzdW5vIj4KICAgIDxpbnRlc3RhemlvbmU+CiAgICAgICAgPG1pdHRlbnRlPm5vLXJlcGx5QGV4YW1wbGUuY29tPC9taXR0ZW50ZT4KICAgICAgICA8ZGVzdGluYXRhcmkgdGlwbz0iY2VydGlmaWNhdG8iPm5vLXJlcGx5QGV4YW1wbGUuY29tPC9kZXN0aW5hdGFyaT4KICAgICAgICA8cmlzcG9zdGU+bm8tcmVwbHlAZXhhbXBsZS5jb208L3Jpc3Bvc3RlPgogICAgICAgIDxvZ2dldHRvPlBPU1RBIENFUlRJRklDQVRBOiBTVUJKRUNUPC9vZ2dldHRvPgogICAgPC9pbnRlc3RhemlvbmU+CiAgICA8ZGF0aT4KICAgICAgICA8Z2VzdG9yZS1lbWl0dGVudGU+bm8tcmVwbHlAZXhhbXBsZS5jb208L2dlc3RvcmUtZW1pdHRlbnRlPgogICAgICAgIDxkYXRhIHpvbmE9IiswMjAwIj4KICAgICAgICAgICAgPGdpb3Jubz4xNC8wNS8yMDIxPC9naW9ybm8+CiAgICAgICAgICAgIDxvcmE+MTI6MDI6MDg8L29yYT4KICAgICAgICA8L2RhdGE+CiAgICAgICAgPGlkZW50aWZpY2F0aXZvPkNaUFhDSlJaS1FEUlZZWEZBWllVSUFXTkFDREFBSEVWQUVYQUtOQGV4YW1wbGUuY29tPC9pZGVudGlmaWNhdGl2bz4KICAgICAgICA8bXNnaWQ+Jmx0O0NaUFhDSlJaS1FEUlZZWEZBWllVSUFXTkFDREFBSEVWQUVYQUtOQGV4YW1wbGUuY29tJmd0OzwvbXNnaWQ+CiAgICAgICAgPHJpY2V2dXRhIHRpcG89ImNvbXBsZXRhIiAvPgogICAgPC9kYXRpPgo8L3Bvc3RhY2VydD4=
+
+------------=_1620986528-13931-424
+Content-Type: message/rfc822; name="postacert.eml"
+Content-Disposition: inline; filename="postacert.eml"
+Content-Transfer-Encoding: 7bit
+
+Received: from example (example [127.0.0.1])
+	by example.example.com (Postfix) with ESMTPSA id 4Wk
+	for <no-reply@example.com>; Fri, 14 May 2021 12:02:08 +0200 (CEST)
+Date: Fri, 14 May 2021 12:02:08 +0200 (CEST)
+From: no-reply@example.com
+To: no-reply@example.com
+Subject: POSTA CERTIFICATA: SUBJECT
+MIME-Version: 1.0
+Content-Type: multipart/mixed; 
+	boundary="----=_Part_1131470_1902883516.1620986528145"
+X-TipoRicevuta: completa
+Message-ID: <CZPXCJRZKQDRVYXFAZYUIAWNACDAAHEVAEXAKN@example.com>
+X-Riferimento-Message-ID: <CZPXCJRZKQDRVAAHEVAEXAKN@example.com>
+
+------=_Part_1131470_1902883516.1620986528145
+Content-Type: text/plain; charset=us-ascii
+Content-Transfer-Encoding: 7bit
+
+text
+
+------B4AB3697AC6503157C6A512A44E9D900
+Content-Type: application/pkcs7-signature; name="smime.p7s"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="smime.p7s"
+
+MII..PKw==
+
+------B4AB3697AC6503157C6A512A44E9D900--
+

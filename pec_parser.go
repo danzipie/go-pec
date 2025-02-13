@@ -48,7 +48,7 @@ func extractPECHeaders(header *mail.Header, pecMail *PECMail) {
 				} else if strings.Contains(value, "avvenuta-consegna") {
 					pecMail.PecType = DeliveryReceipt
 				} else if strings.Contains(value, "errore-consegna") {
-					pecMail.PecType = DeliveryReceipt
+					pecMail.PecType = DeliveryErrorReceipt
 				}
 			} else if h == "X-Trasporto" {
 				if strings.Contains(value, "posta-certificata") {
