@@ -86,14 +86,13 @@ func TestPECHeaders(t *testing.T) {
 	filename := "test/resources/accettazione.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
-		fmt.Printf("Error reading file %s", filename)
-		return
+		t.Errorf("Error reading file %s", filename)
 	}
 
 	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
 	if err != nil {
 		fmt.Println("Error parsing email:", err)
-		return
+		t.Errorf("Error parsing email %s", err)
 	}
 
 	header := msg.Header
@@ -109,14 +108,12 @@ func TestParseAccettazione(t *testing.T) {
 	filename := "test/resources/accettazione.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
-		fmt.Printf("Error reading file %s", filename)
-		return
+		t.Errorf("Error reading file %s", filename)
 	}
 
 	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
 	if err != nil {
-		fmt.Println("Error parsing email:", err)
-		return
+		t.Errorf("Error parsing email %s", err)
 	}
 
 	pecMail, datiCert, e := parsePec(msg)
@@ -142,14 +139,12 @@ func TestParseDelivery(t *testing.T) {
 	filename := "test/resources/email_2.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
-		fmt.Printf("Error reading file %s", filename)
-		return
+		t.Errorf("Error reading file %s", filename)
 	}
 
 	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
 	if err != nil {
-		fmt.Println("Error parsing email:", err)
-		return
+		t.Errorf("Error parsing email %s", err)
 	}
 
 	_, _, e := parsePec(msg)
@@ -187,14 +182,12 @@ func TestParseCertifiedEmail(t *testing.T) {
 	filename := "test/resources/email_3.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
-		fmt.Printf("Error reading file %s", filename)
-		return
+		t.Errorf("Error reading file %s", filename)
 	}
 
 	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
 	if err != nil {
-		fmt.Println("Error parsing email:", err)
-		return
+		t.Errorf("Error parsing email %s", err)
 	}
 
 	_, _, e := parsePec(msg)
@@ -211,14 +204,12 @@ func TestParseAndVerify(t *testing.T) {
 	filename := "test/resources/email_3.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
-		fmt.Printf("Error reading file %s", filename)
-		return
+		t.Errorf("Error reading file %s", filename)
 	}
 
 	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
 	if err != nil {
-		fmt.Println("Error parsing email:", err)
-		return
+		t.Errorf("Error parsing email %s", err)
 	}
 
 	_, _, e := parseAndVerify(msg)

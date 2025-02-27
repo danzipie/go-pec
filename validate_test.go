@@ -9,11 +9,11 @@ func TestValidateSMIME(t *testing.T) {
 	// disable this test
 	t.Skip()
 
-	filename := "test_mails/email1.eml"
+	filename := "test/resources/email_2.eml"
 	emlData := readEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
-		return
+		t.Errorf("Error reading file %s", filename)
 	}
 
 	isValid := validateSMIMESignature(emlData)
