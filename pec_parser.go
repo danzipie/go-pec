@@ -171,27 +171,3 @@ func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 
 	return pecMail, datiCert, nil
 }
-
-func parseAndVerify(msg *mail.Message) (*PECMail, *DatiCert, error) {
-	pecMail, datiCert, err := parsePec(msg)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// convert msg to a byte array
-	buf := new(bytes.Buffer)
-	_, err = buf.ReadFrom(msg.Body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// convert buf to a byte array
-	emlData := buf.Bytes()
-
-	valid := validateSMIMESignature(emlData)
-	if !valid {
-		return nil, nil, err
-	}
-
-	return pecMail, datiCert, nil
-}

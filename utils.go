@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"strings"
 )
 
 // readEmail reads and parses an .eml file, extracting headers, body, and attachments
@@ -21,9 +20,9 @@ func readEmail(filePath string) []byte {
 
 // decodeBase64IfNeeded checks if the signature is base64 encoded and decodes it
 func decodeBase64IfNeeded(data []byte) []byte {
-	encoded := strings.TrimSpace(string(data))
+	// encoded := strings.TrimSpace(string(data))
 
-	decoded, err := base64.StdEncoding.DecodeString(encoded)
+	decoded, err := base64.StdEncoding.DecodeString(string(data))
 	if err != nil {
 		fmt.Println("Error decoding base64:", err)
 		return data

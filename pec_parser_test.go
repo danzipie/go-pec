@@ -212,8 +212,12 @@ func TestParseAndVerify(t *testing.T) {
 		t.Errorf("Error parsing email %s", err)
 	}
 
-	_, _, e := parseAndVerify(msg)
+	_, _, e := parsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
+	}
+
+	if verifySMIMEWithOpenSSL(filename) != nil {
+		t.Fatalf("Verification failed")
 	}
 }

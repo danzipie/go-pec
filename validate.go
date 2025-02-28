@@ -1,86 +1,23 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"mime"
-	"mime/multipart"
-	"net/mail"
-
-	"go.mozilla.org/pkcs7"
+	"os"
+	"os/exec"
 )
 
-// Function to validate the digital signature in smime.p7s
-func validateSMIMESignature(emlData []byte) bool {
-	// Parse the email
-	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+// Function to verify the S/MIME signature using OpenSSL
+// TBD: Remove dependency on external program
+func verifySMIMEWithOpenSSL(emlFile string) error {
+	cmd := exec.Command("openssl", "smime", "-verify", "-in", emlFile, "-noverify")
+	cmd.Stdin = os.Stdin
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+
+	err := cmd.Run()
 	if err != nil {
-		fmt.Println("Error parsing email:", err)
-		return false
+		return fmt.Errorf("OpenSSL verification failed: %v", err)
 	}
 
-	// Get the content type
-	contentType := msg.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		fmt.Println("Error parsing content type:", err)
-		return false
-	}
-
-	if mediaType != "multipart/signed" {
-		fmt.Println("Email is not a signed S/MIME message")
-		return false
-	}
-
-	// Parse multipart content
-	mr := multipart.NewReader(msg.Body, params["boundary"])
-	var signedData, signatureData []byte
-
-	for {
-		part, err := mr.NextPart()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fmt.Println("Error reading multipart:", err)
-			return false
-		}
-
-		partMediaType, _, _ := mime.ParseMediaType(part.Header.Get("Content-Type"))
-		partData, _ := io.ReadAll(part)
-
-		if partMediaType == "application/pkcs7-signature" || partMediaType == "application/x-pkcs7-signature" {
-			signatureData = decodeBase64IfNeeded(partData)
-		} else {
-			signedData = normalizeLineEndings(partData)
-		}
-	}
-
-	if signedData == nil || signatureData == nil {
-		fmt.Println("Missing signed data or signature")
-		return false
-	}
-
-	// Decode the PKCS7 signature
-	p7, err := pkcs7.Parse(signatureData)
-	if err != nil {
-		fmt.Println("Error parsing PKCS7:", err)
-		return false
-	}
-
-	// Verify the signature
-	err = p7.Verify()
-	if err != nil {
-		fmt.Println("Signature verification failed:", err)
-		return false
-	}
-
-	// Extract signer certificates
-	for _, cert := range p7.Certificates {
-		fmt.Printf("Signer: %s\n", cert.Subject.CommonName)
-	}
-
-	fmt.Println("S/MIME signature is valid!")
-	return true
+	return nil
 }
