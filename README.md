@@ -36,3 +36,15 @@ if e != nil {
 
 The result is an untrusted struct representing a PEC mail.
 
+To verify the PEC signature use
+
+```
+// read email
+email := readEmail("yourEmail.eml")
+
+// verify email
+if verifySMIMEWithOpenSSL(email) != nil {
+    log.Fatalf("failed to verify email")
+}
+```
+
