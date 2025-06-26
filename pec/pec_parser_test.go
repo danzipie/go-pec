@@ -1,4 +1,4 @@
-package main
+package pec
 
 import (
 	"bytes"
@@ -84,7 +84,7 @@ func TestParseDatiCertXMLErroreEsteso(t *testing.T) {
 func TestPECHeaders(t *testing.T) {
 
 	filename := "test/resources/accettazione.eml"
-	emlData := readEmail(filename)
+	emlData := ReadEmail(filename)
 	if emlData == nil {
 		t.Errorf("Error reading file %s", filename)
 	}
@@ -106,7 +106,7 @@ func TestPECHeaders(t *testing.T) {
 
 func TestParseAccettazione(t *testing.T) {
 	filename := "test/resources/accettazione.eml"
-	emlData := readEmail(filename)
+	emlData := ReadEmail(filename)
 	if emlData == nil {
 		t.Errorf("Error reading file %s", filename)
 	}
@@ -116,7 +116,7 @@ func TestParseAccettazione(t *testing.T) {
 		t.Errorf("Error parsing email %s", err)
 	}
 
-	pecMail, datiCert, e := parsePec(msg)
+	pecMail, datiCert, e := ParsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
 	}
@@ -137,7 +137,7 @@ func TestParseAccettazione(t *testing.T) {
 
 func TestParseDelivery(t *testing.T) {
 	filename := "test/resources/email_2.eml"
-	emlData := readEmail(filename)
+	emlData := ReadEmail(filename)
 	if emlData == nil {
 		t.Errorf("Error reading file %s", filename)
 	}
@@ -147,7 +147,7 @@ func TestParseDelivery(t *testing.T) {
 		t.Errorf("Error parsing email %s", err)
 	}
 
-	_, _, e := parsePec(msg)
+	_, _, e := ParsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
 	}
@@ -156,7 +156,7 @@ func TestParseDelivery(t *testing.T) {
 
 func TestParseDeliveryError(t *testing.T) {
 	filename := "test/resources/consegna.eml"
-	emlData := readEmail(filename)
+	emlData := ReadEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
 		return
@@ -168,7 +168,7 @@ func TestParseDeliveryError(t *testing.T) {
 		return
 	}
 
-	_, _, e := parsePec(msg)
+	_, _, e := ParsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
 	}
@@ -180,7 +180,7 @@ func TestParseCertifiedEmail(t *testing.T) {
 	t.Skip()
 
 	filename := "test/resources/email_3.eml"
-	emlData := readEmail(filename)
+	emlData := ReadEmail(filename)
 	if emlData == nil {
 		t.Errorf("Error reading file %s", filename)
 	}
@@ -190,7 +190,7 @@ func TestParseCertifiedEmail(t *testing.T) {
 		t.Errorf("Error parsing email %s", err)
 	}
 
-	_, _, e := parsePec(msg)
+	_, _, e := ParsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
 	}
@@ -202,7 +202,7 @@ func TestParseAndVerify(t *testing.T) {
 	t.Skip()
 
 	filename := "test/resources/email_3.eml"
-	emlData := readEmail(filename)
+	emlData := ReadEmail(filename)
 	if emlData == nil {
 		t.Errorf("Error reading file %s", filename)
 	}
@@ -212,7 +212,7 @@ func TestParseAndVerify(t *testing.T) {
 		t.Errorf("Error parsing email %s", err)
 	}
 
-	_, _, e := parsePec(msg)
+	_, _, e := ParsePec(msg)
 	if e != nil {
 		t.Fatalf("failed to parse email: %v", e)
 	}

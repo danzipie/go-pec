@@ -1,4 +1,4 @@
-package main
+package pec
 
 import (
 	"bytes"
@@ -7,8 +7,8 @@ import (
 	"os"
 )
 
-// readEmail reads and parses an .eml file, extracting headers, body, and attachments
-func readEmail(filePath string) []byte {
+// ReadEmail reads and parses an .eml file, extracting headers, body, and attachments
+func ReadEmail(filePath string) []byte {
 	// Read the EML file
 	emlData, err := os.ReadFile(filePath)
 	if err != nil {

@@ -1,4 +1,4 @@
-package main
+package pec
 
 import (
 	"bytes"
@@ -104,7 +104,7 @@ func parseMixedPart(partData []byte, boundary string) *DatiCert {
 
 // Function to parse the PEC email
 // Extracts the envelope and the daticert.xml
-func parsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
+func ParsePec(msg *mail.Message) (*PECMail, *DatiCert, error) {
 
 	pecMail := &PECMail{}
 	datiCert := &DatiCert{}

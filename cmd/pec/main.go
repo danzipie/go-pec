@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log"
 	"net/mail"
+
+	"github.com/danzipie/go-pec/pec"
 )
 
 func main() {
 
 	filename := "test_mails/email1.eml"
-	emlData := readEmail(filename)
+	emlData := pec.ReadEmail(filename)
 	if emlData == nil {
 		fmt.Printf("Error reading file %s", filename)
 		return
@@ -24,13 +26,13 @@ func main() {
 	}
 
 	// parse email
-	pecMail, datiCert, e := parsePec(msg)
+	pecMail, datiCert, e := pec.ParsePec(msg)
 	if e != nil {
 		log.Fatalf("failed to parse email: %v", e)
 	}
 
 	// verify signature
-	// validateSMIMESignature()
+	// ValidateSMIMESignature()
 
 	// print PECMail struct
 	marshaled, err := json.MarshalIndent(pecMail, "", "   ")

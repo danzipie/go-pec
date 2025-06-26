@@ -17,7 +17,7 @@ multipart/mixed
 
 ## Tests
 
-`go test`
+`go test -v ./pec`
 
 ## Parse PEC
 
@@ -25,10 +25,10 @@ Example how to read a PEC from `.eml` file and parse it:
 
 ```
 // read email
-email := readEmail("yourEmail.eml")
+email := ReadEmail("yourEmail.eml")
 
 // parse email
-untrustedPecMail, untrustedDatiCert, e := parsePec(email)
+untrustedPecMail, untrustedDatiCert, e := ParsePec(email)
 if e != nil {
     log.Fatalf("failed to parse email: %v", e)
 }
@@ -40,10 +40,10 @@ To verify the PEC signature use
 
 ```
 // read email
-email := readEmail("yourEmail.eml")
+email := ReadEmail("yourEmail.eml")
 
 // verify email
-if verifySMIMEWithOpenSSL(email) != nil {
+if VerifySMIMEWithOpenSSL(email) != nil {
     log.Fatalf("failed to verify email")
 }
 ```
