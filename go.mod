@@ -1,4 +1,4 @@
-module go-pec
+module github.com/danzipie/go-pec
 
 go 1.23
 
