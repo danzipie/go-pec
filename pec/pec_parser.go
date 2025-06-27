@@ -2,6 +2,7 @@ package pec
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/xml"
 	"fmt"
 	"io"
@@ -84,7 +85,19 @@ func parseMixedPart(partData []byte, boundary string) *DatiCert {
 		if partMediaType == "multipart/alternative" {
 			// log.Println("multipart/alternative detected")
 		} else if partMediaType == "application/xml" {
-			datiCert, err := parseDatiCertXML(string(partData))
+			var decoded []byte
+			if part.Header.Get("Content-Transfer-Encoding") == "base64" {
+				d, err := base64.StdEncoding.DecodeString(string(partData))
+				if err != nil {
+					fmt.Println("Error decoding base64:", err)
+					return nil
+				}
+				decoded = d
+			} else {
+				decoded = partData
+			}
+
+			datiCert, err := parseDatiCertXML(string(decoded))
 			if err != nil {
 				fmt.Println("Error parsing daticert.xml:", err)
 			}
