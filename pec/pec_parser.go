@@ -84,8 +84,7 @@ func parseMixedPart(partData []byte, boundary string) *DatiCert {
 		if partMediaType == "multipart/alternative" {
 			// log.Println("multipart/alternative detected")
 		} else if partMediaType == "application/xml" {
-			decoded := decodeBase64IfNeeded(partData)
-			datiCert, err := parseDatiCertXML(string(decoded))
+			datiCert, err := parseDatiCertXML(string(partData))
 			if err != nil {
 				fmt.Println("Error parsing daticert.xml:", err)
 			}

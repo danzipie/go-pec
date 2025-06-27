@@ -1,51 +1,44 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
-	"net/mail"
+	"os"
 
 	"github.com/danzipie/go-pec/pec"
 )
 
 func main() {
-
-	filename := "test_mails/email1.eml"
-	emlData := pec.ReadEmail(filename)
-	if emlData == nil {
-		fmt.Printf("Error reading file %s", filename)
-		return
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: pec-parser <command> [options]")
+		fmt.Println("Commands: verify")
+		os.Exit(1)
 	}
 
-	msg, err := mail.ReadMessage(bytes.NewReader(emlData))
+	switch os.Args[1] {
+	case "verify":
+		verifyCmd(os.Args[2:])
+	default:
+		fmt.Println("Unknown command:", os.Args[1])
+		os.Exit(1)
+	}
+}
+
+func verifyCmd(args []string) {
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	in := fs.String("in", "", "Path to ricevuta .eml")
+	fs.Parse(args)
+
+	if *in == "" {
+		fs.Usage()
+		os.Exit(1)
+	}
+
+	err := pec.Verify(*in)
 	if err != nil {
-		fmt.Println("Error parsing email:", err)
-		return
+		log.Fatal("Verification failed:", err)
 	}
 
-	// parse email
-	pecMail, datiCert, e := pec.ParsePec(msg)
-	if e != nil {
-		log.Fatalf("failed to parse email: %v", e)
-	}
-
-	// verify signature
-	// ValidateSMIMESignature()
-
-	// print PECMail struct
-	marshaled, err := json.MarshalIndent(pecMail, "", "   ")
-	if err != nil {
-		log.Fatalf("marshaling error: %s", err)
-	}
-	fmt.Println(string(marshaled))
-
-	// print DatiCert struct
-	marshaled, err = json.MarshalIndent(datiCert, "", "   ")
-	if err != nil {
-		log.Fatalf("marshaling error: %s", err)
-	}
-	fmt.Println(string(marshaled))
-
+	fmt.Println("Ricevuta is valid.")
 }

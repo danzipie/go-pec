@@ -21,22 +21,14 @@ multipart/mixed
 
 ## Parse PEC
 
-Example how to read a PEC from `.eml` file and parse it:
+Example how to read a PEC from an `.eml` file and verify it:
 
 ```
-// read email
-email := ReadEmail("yourEmail.eml")
-
-// parse email
-untrustedPecMail, untrustedDatiCert, e := ParsePec(email)
-if e != nil {
-    log.Fatalf("failed to parse email: %v", e)
-}
+go build -o pec-parser cmd/pec/main.go
+./pec-parser verify -in your_pec_file.eml
 ```
 
-The result is an untrusted struct representing a PEC mail.
-
-To verify the PEC signature use
+To verify the PEC signature we use
 
 ```
 // read email
