@@ -2,19 +2,31 @@ package main
 
 import (
 	"bytes"
+	"crypto/x509"
+	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"io"
 	"log"
-	"net/mail"
 	"os"
 	"time"
 
+	"github.com/danzipie/go-pec/pec-server/logger"
+	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 )
 
 // The Backend implements SMTP server methods.
-type Backend struct{}
+type Backend struct {
+	signer *Signer
+}
+
+func NewBackend(signer *Signer) *Backend {
+	return &Backend{
+		signer: signer,
+	}
+}
 
 // NewSession is called after client greeting (EHLO, HELO).
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
@@ -23,10 +35,11 @@ func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 
 // A Session is returned after successful login.
 type Session struct {
-	from string
-	to   []string
-	data bytes.Buffer
-	auth bool
+	from   string
+	to     []string
+	data   bytes.Buffer
+	auth   bool
+	signer *Signer
 }
 
 // AuthMechanisms returns a slice of available auth mechanisms; only PLAIN is
@@ -77,6 +90,33 @@ func (s *Session) Data(r io.Reader) error {
 		if err := SaveRawEmailToFile(bytes.NewReader(b), "received_email.eml"); err != nil {
 			return err
 		}
+		if err := SaveSmtpEnvelopeToFile(s, "received_email.envelope.txt"); err != nil {
+			return err
+		}
+
+		// Parse the email and log the header and body
+		header, body, err := parseEmailFromSession(*s)
+		if err != nil {
+			return err
+		}
+		log.Println("Parsed Email Header:", header)
+		log.Println("Parsed Email Body:", string(body))
+		r := bytes.NewReader(s.data.Bytes())
+		mr, err := mail.CreateReader(r)
+		if err != nil {
+			return err
+		}
+		if err := ValidateEnvelopeAndHeaders(s.from, s.to, mr); err != nil {
+			if valErr, ok := err.(ValidationError); ok {
+				log.Println("Validation Error:", valErr)
+				// emit message of non-acceptance
+				GenerateNonAcceptanceEmail("localhost", valErr, s.signer)
+			}
+			return err
+		} else {
+			log.Println("Envelope and headers validation passed")
+			// TODO: Handle accepted message
+		}
 	}
 	return nil
 }
@@ -87,11 +127,30 @@ func (s *Session) Logout() error {
 	return nil
 }
 
-// AddMissingDateHeader adds a Date header if it is missing from the message.
-func AddMissingDateHeader(msg *mail.Message) {
-	if msg.Header.Get("Date") == "" {
-		msg.Header["Date"] = []string{time.Now().Format(time.RFC1123Z)}
+func SaveSmtpEnvelopeToFile(s *Session, filename string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
 	}
+	defer f.Close()
+
+	// Write the SMTP envelope to the file
+	if _, err := f.WriteString("Return-Path: " + s.from + "\n"); err != nil {
+		return err
+	}
+	for _, recipient := range s.to {
+		if _, err := f.WriteString("Forward-Path: " + recipient + "\n"); err != nil {
+			return err
+		}
+	}
+	f.WriteString("\n") // End of headers
+
+	// Write the raw DATA bytes to the file
+	if _, err := f.Write(s.data.Bytes()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // SaveRawEmailToFile saves the raw DATA bytes to a file as-is.
@@ -105,14 +164,117 @@ func SaveRawEmailToFile(r io.Reader, filename string) error {
 	return err
 }
 
+func parseEmailFromSession(s Session) (*mail.Header, []byte, error) {
+	r := bytes.NewReader(s.data.Bytes())
+	mr, err := mail.CreateReader(r)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	header := mr.Header
+
+	p, err := mr.NextPart()
+	if err != nil {
+		return &header, nil, err
+	}
+	body, err := io.ReadAll(p.Body)
+	if err != nil {
+		return &header, nil, err
+	}
+
+	return &header, body, nil
+}
+
+func LoadSMIMECredentials(certPath, keyPath string) (*x509.Certificate, interface{}, error) {
+	certPEM, err := os.ReadFile(certPath)
+	if err != nil {
+		return nil, nil, err
+	}
+	keyPEM, err := os.ReadFile(keyPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Parse certificate
+	block, _ := pem.Decode(certPEM)
+	if block == nil || block.Type != "CERTIFICATE" {
+		return nil, nil, errors.New("failed to decode certificate")
+	}
+	cert, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Parse private key
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		return nil, nil, errors.New("failed to decode private key")
+	}
+	privKey, err := x509.ParsePKCS8PrivateKey(keyBlock.Bytes)
+	if err != nil {
+		// fallback
+		privKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return cert, privKey, nil
+}
+
+type Config struct {
+	Domain       string `json:"domain"`
+	CertFilePath string `json:"cert_file"`
+	KeyFilePath  string `json:"key_file"`
+	SMTPServer   string `json:"smtp_server"`
+}
+
+func LoadConfig(path string) (*Config, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	var cfg Config
+	decoder := json.NewDecoder(f)
+	if err := decoder.Decode(&cfg); err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
 // main starts the SMTP server.
 func main() {
-	be := &Backend{}
+
+	cfg, err := LoadConfig("config.json")
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	// Load S/MIME credentials
+	cert, key, err := LoadSMIMECredentials(cfg.CertFilePath, cfg.KeyFilePath)
+	if err != nil {
+		log.Fatal("Cert load failed:", err)
+	}
+
+	// Initialize logger
+	if err := logger.Init("pec.log"); err != nil {
+		log.Fatal("Logger initialization failed:", err)
+	}
+	defer logger.Sync()
+
+	signer := &Signer{
+		Cert:   cert,
+		Key:    key,
+		Domain: cfg.Domain,
+	}
+	be := NewBackend(signer)
 
 	s := smtp.NewServer(be)
 
-	s.Addr = "localhost:1025"
-	s.Domain = "localhost"
+	s.Addr = cfg.SMTPServer
+	s.Domain = cfg.Domain
 	s.WriteTimeout = 10 * time.Second
 	s.ReadTimeout = 10 * time.Second
 	s.MaxMessageBytes = 1024 * 1024

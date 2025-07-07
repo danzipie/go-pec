@@ -1,0 +1,6 @@
+{
+    "domain": "pec.example.com",
+    "cert_file": "cert.pem",
+    "key_file": "key.pem",
+    "smtp_server": "localhost:1025"
+}
