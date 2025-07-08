@@ -20,6 +20,15 @@ type Signer struct {
 
 // S/MIME signing using go.mozilla.org/pkcs7
 func (s *Signer) SignEmail(emailContent []byte) ([]byte, error) {
+
+	// Validate the certificate and key
+	if s.Cert == nil {
+		return nil, fmt.Errorf("certificate is nil")
+	}
+	if s.Key == nil {
+		return nil, fmt.Errorf("key is nil")
+	}
+
 	// Create PKCS7 signed data
 	signedData, err := pkcs7.NewSignedData(emailContent)
 	if err != nil {
