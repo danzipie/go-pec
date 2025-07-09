@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto"
 	"crypto/x509"
 	"encoding/base64"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/emersion/go-message"
 	"go.mozilla.org/pkcs7"
 )
 
@@ -77,7 +79,7 @@ func (s *Signer) CreateSignedMimeMessage(emailContent []byte) ([]byte, error) {
 	result.WriteString("MIME-Version: 1.0\r\n")
 	result.WriteString(fmt.Sprintf("Content-Type: multipart/signed; protocol=\"application/pkcs7-signature\"; micalg=sha256; boundary=\"%s\"\r\n", boundary))
 	result.WriteString("\r\n")
-	result.WriteString("This is a multi-part message in MIME format.\r\n")
+	result.WriteString("This is an S/MIME signed message\r\n")
 	result.WriteString("\r\n")
 
 	// Write the original email content
@@ -99,6 +101,20 @@ func (s *Signer) CreateSignedMimeMessage(emailContent []byte) ([]byte, error) {
 	result.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
 
 	return []byte(result.String()), nil
+}
+
+func (s *Signer) CreateSignedMimeMessageEntity(emailContent []byte) (*message.Entity, error) {
+	signedMessage, err := s.CreateSignedMimeMessage(emailContent)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create signed S/MIME message: %v", err)
+	}
+
+	// Parse the signed message into a message.Entity
+	entity, err := message.Read(bytes.NewReader(signedMessage))
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse signed S/MIME message: %v", err)
+	}
+	return entity, nil
 }
 
 // formatBase64 formats base64 string with line breaks

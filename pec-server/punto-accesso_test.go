@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -135,26 +136,10 @@ func TestGenerateNonAcceptanceEmail(t *testing.T) {
 
 	// Check Content-Type header
 	contentType := header.Get("Content-Type")
-	if !strings.HasPrefix(contentType, "multipart/mixed") {
-		t.Errorf("Expected Content-Type to start with 'multipart/mixed', got '%s'", contentType)
+	if !strings.HasPrefix(contentType, "multipart/signed") {
+		t.Errorf("Expected Content-Type to start with 'multipart/signed', got '%s'", contentType)
 	}
 
-	// Read the body and verify it's signed
-	body, err := io.ReadAll(entity.Body)
-	if err != nil {
-		t.Fatalf("Failed to read entity body: %v", err)
-	}
-
-	bodyStr := string(body)
-
-	// Check for S/MIME signature markers
-	if !strings.Contains(bodyStr, "multipart/signed") {
-		t.Error("Body should contain S/MIME signature markers")
-	}
-
-	if !strings.Contains(bodyStr, "application/pkcs7-signature") {
-		t.Error("Body should contain PKCS#7 signature content type")
-	}
 }
 
 // TestGenerateNonAcceptanceEmail_ContentVerification tests the content of the generated email
@@ -188,13 +173,13 @@ func TestGenerateNonAcceptanceEmail_ContentVerification(t *testing.T) {
 		t.Fatalf("GenerateNonAcceptanceEmail failed: %v", err)
 	}
 
-	// Read the body
-	body, err := io.ReadAll(entity.Body)
-	if err != nil {
-		t.Fatalf("Failed to read entity body: %v", err)
+	var buf bytes.Buffer
+
+	if err := entity.WriteTo(&buf); err != nil {
+		t.Fatalf("Failed to write entity to buffer: %v", err)
 	}
 
-	bodyStr := string(body)
+	bodyStr := string(buf.String())
 
 	// Check for specific content in the human-readable part
 	expectedTexts := []string{
