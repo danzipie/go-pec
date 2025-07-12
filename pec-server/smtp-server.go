@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"io"
@@ -11,7 +10,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/danzipie/go-pec/pec-server/logger"
+	"github.com/danzipie/go-pec/pec-server/store"
+	"github.com/emersion/go-imap"
+	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -20,17 +21,22 @@ import (
 // The Backend implements SMTP server methods.
 type Backend struct {
 	signer *Signer
+	store  store.MessageStore
 }
 
-func NewBackend(signer *Signer) *Backend {
+func NewBackend(signer *Signer, store store.MessageStore) *Backend {
 	return &Backend{
 		signer: signer,
+		store:  store,
 	}
 }
 
 // NewSession is called after client greeting (EHLO, HELO).
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
-	return &Session{}, nil
+	return &Session{
+		signer: bkd.signer,
+		store:  bkd.store,
+	}, nil
 }
 
 // A Session is returned after successful login.
@@ -40,6 +46,7 @@ type Session struct {
 	data   bytes.Buffer
 	auth   bool
 	signer *Signer
+	store  store.MessageStore
 }
 
 // AuthMechanisms returns a slice of available auth mechanisms; only PLAIN is
@@ -110,12 +117,41 @@ func (s *Session) Data(r io.Reader) error {
 			if valErr, ok := err.(ValidationError); ok {
 				log.Println("Validation Error:", valErr)
 				// emit message of non-acceptance
-				GenerateNonAcceptanceEmail("localhost", valErr, s.signer)
+				nonAcceptanceMsg, err := GenerateNonAcceptanceEmail("localhost", valErr, s.signer)
+				if err != nil {
+					return err
+				}
+
+				// Store the non-acceptance message in the IMAP store
+				if s.store != nil {
+					msg := convertToIMAPMessage(nonAcceptanceMsg)
+					if err := s.store.AddMessage(s.from, msg); err != nil {
+						return err
+					}
+				}
 			}
 			return err
 		} else {
 			log.Println("Envelope and headers validation passed")
-			// TODO: Handle accepted message
+			// Store the accepted message in the IMAP store
+			if s.store != nil {
+				msg := &imap.Message{
+					Envelope: &imap.Envelope{
+						Date:    time.Now(),
+						Subject: header.Get("Subject"),
+						From:    []*imap.Address{{HostName: s.from}},
+						To:      []*imap.Address{{HostName: s.to[0]}},
+					},
+					Body:         make(map[*imap.BodySectionName]imap.Literal),
+					Flags:        []string{imap.SeenFlag},
+					InternalDate: time.Now(),
+					Size:         uint32(s.data.Len()),
+					Uid:          uint32(time.Now().Unix()),
+				}
+				if err := s.store.AddMessage(s.to[0], msg); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil
@@ -222,67 +258,36 @@ func LoadSMIMECredentials(certPath, keyPath string) (*x509.Certificate, interfac
 	return cert, privKey, nil
 }
 
-type Config struct {
-	Domain       string `json:"domain"`
-	CertFilePath string `json:"cert_file"`
-	KeyFilePath  string `json:"key_file"`
-	SMTPServer   string `json:"smtp_server"`
+// StartSMTP starts the SMTP server with the given configuration
+func StartSMTP(addr string, domain string, backend *Backend) error {
+	s := smtp.NewServer(backend)
+	s.Addr = addr
+	s.Domain = domain
+	s.AllowInsecureAuth = true // For testing only
+
+	log.Printf("Starting SMTP server at %v", s.Addr)
+	return s.ListenAndServe()
 }
 
-func LoadConfig(path string) (*Config, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	var cfg Config
-	decoder := json.NewDecoder(f)
-	if err := decoder.Decode(&cfg); err != nil {
-		return nil, err
-	}
-	return &cfg, nil
-}
-
-// main starts the SMTP server.
-func main() {
-
-	cfg, err := LoadConfig("config.json")
-	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+// Helper function to convert message.Entity to imap.Message
+func convertToIMAPMessage(entity *message.Entity) *imap.Message {
+	msg := &imap.Message{
+		Envelope: &imap.Envelope{
+			Date:    time.Now(),
+			Subject: entity.Header.Get("Subject"),
+			From:    []*imap.Address{{HostName: entity.Header.Get("From")}},
+			To:      []*imap.Address{{HostName: entity.Header.Get("To")}},
+		},
+		Body:         make(map[*imap.BodySectionName]imap.Literal),
+		Flags:        []string{imap.SeenFlag},
+		InternalDate: time.Now(),
+		Uid:          uint32(time.Now().Unix()),
 	}
 
-	// Load S/MIME credentials
-	cert, key, err := LoadSMIMECredentials(cfg.CertFilePath, cfg.KeyFilePath)
-	if err != nil {
-		log.Fatal("Cert load failed:", err)
-	}
+	// Store the message body
+	var buf bytes.Buffer
+	entity.WriteTo(&buf)
+	msg.Size = uint32(buf.Len())
 
-	// Initialize logger
-	if err := logger.Init("pec.log"); err != nil {
-		log.Fatal("Logger initialization failed:", err)
-	}
-	defer logger.Sync()
-
-	signer := &Signer{
-		Cert:   cert,
-		Key:    key,
-		Domain: cfg.Domain,
-	}
-	be := NewBackend(signer)
-
-	s := smtp.NewServer(be)
-
-	s.Addr = cfg.SMTPServer
-	s.Domain = cfg.Domain
-	s.WriteTimeout = 10 * time.Second
-	s.ReadTimeout = 10 * time.Second
-	s.MaxMessageBytes = 1024 * 1024
-	s.MaxRecipients = 50
-	s.AllowInsecureAuth = true
-
-	log.Println("Starting server at", s.Addr)
-	if err := s.ListenAndServe(); err != nil {
-		log.Fatal(err)
-	}
+	return msg
 }

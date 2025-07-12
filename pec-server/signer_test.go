@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -13,7 +14,7 @@ import (
 	"go.mozilla.org/pkcs7"
 )
 
-// createTestCertAndKey creates a test certificate and private key for testing
+// Helper function to create test certificate and key
 func createTestCertAndKey(t *testing.T) (*x509.Certificate, *rsa.PrivateKey) {
 	// Generate a private key
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
@@ -361,5 +362,240 @@ func BenchmarkCreateSignedMimeMessage(b *testing.B) {
 		if err != nil {
 			b.Fatalf("CreateSignedMimeMessage failed: %v", err)
 		}
+	}
+}
+
+// TestCreateSignedMimeMessageEntity tests the main functionality
+func TestCreateSignedMimeMessageEntity(t *testing.T) {
+	// Create test certificate and key
+	cert, key := createTestCertAndKey(t)
+
+	// Create signer
+	signer := &Signer{
+		Cert:   cert,
+		Key:    key,
+		Domain: "testdomain.com",
+	}
+
+	// Create test email content
+	testEmailContent := []byte(`From: sender@example.com
+To: recipient@example.com
+Subject: Test Email
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+This is a test email content.
+`)
+
+	// Test the function
+	entity, err := signer.CreateSignedMimeMessageEntity(testEmailContent)
+	if err != nil {
+		t.Fatalf("CreateSignedMimeMessageEntity failed: %v", err)
+	}
+
+	// Verify the entity is not nil
+	if entity == nil {
+		t.Fatal("CreateSignedMimeMessageEntity returned nil entity")
+	}
+
+	// Test headers
+	header := entity.Header
+
+	// Check MIME-Version header
+	if header.Get("MIME-Version") != "1.0" {
+		t.Errorf("Expected MIME-Version to be '1.0', got '%s'", header.Get("MIME-Version"))
+	}
+
+	// Check Content-Type header
+	contentType := header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "multipart/signed") {
+		t.Errorf("Expected Content-Type to start with 'multipart/signed', got '%s'", contentType)
+	}
+
+	// Check that Content-Type contains required parameters
+	if !strings.Contains(contentType, "protocol=\"application/pkcs7-signature\"") {
+		t.Error("Content-Type should contain protocol parameter")
+	}
+
+	if !strings.Contains(contentType, "micalg=sha256") {
+		t.Error("Content-Type should contain micalg parameter")
+	}
+
+	if !strings.Contains(contentType, "boundary=") {
+		t.Error("Content-Type should contain boundary parameter")
+	}
+
+	// Test that the entity can be written and contains the expected structure
+	var buf bytes.Buffer
+	err = entity.WriteTo(&buf)
+	if err != nil {
+		t.Fatalf("Failed to write entity to buffer: %v", err)
+	}
+
+	bodyStr := buf.String()
+
+	// Check for S/MIME structure markers
+	if !strings.Contains(bodyStr, "This is an S/MIME signed message") {
+		t.Error("Body should contain S/MIME signed message marker")
+	}
+
+	if !strings.Contains(bodyStr, "Content-Type: application/pkcs7-signature") {
+		t.Error("Body should contain PKCS7 signature part")
+	}
+
+	if !strings.Contains(bodyStr, "Content-Transfer-Encoding: base64") {
+		t.Error("Body should contain base64 encoding for signature")
+	}
+
+	// Check that the original email content is preserved
+	if !strings.Contains(bodyStr, "sender@example.com") {
+		t.Error("Body should contain original sender")
+	}
+
+	if !strings.Contains(bodyStr, "recipient@example.com") {
+		t.Error("Body should contain original recipient")
+	}
+
+	if !strings.Contains(bodyStr, "Test Email") {
+		t.Error("Body should contain original subject")
+	}
+
+	if !strings.Contains(bodyStr, "This is a test email content.") {
+		t.Error("Body should contain original email content")
+	}
+}
+
+// TestCreateSignedMimeMessageEntity_EmptyContent tests with empty content
+func TestCreateSignedMimeMessageEntity_EmptyContent(t *testing.T) {
+	// Create test certificate and key
+	cert, key := createTestCertAndKey(t)
+
+	// Create signer
+	signer := &Signer{
+		Cert:   cert,
+		Key:    key,
+		Domain: "testdomain.com",
+	}
+
+	// Test with empty content
+	entity, err := signer.CreateSignedMimeMessageEntity([]byte{})
+	if err != nil {
+		t.Fatalf("CreateSignedMimeMessageEntity failed with empty content: %v", err)
+	}
+
+	if entity == nil {
+		t.Fatal("CreateSignedMimeMessageEntity returned nil entity with empty content")
+	}
+
+	// Verify the entity can be written
+	var buf bytes.Buffer
+	err = entity.WriteTo(&buf)
+	if err != nil {
+		t.Fatalf("Failed to write entity to buffer: %v", err)
+	}
+
+	bodyStr := buf.String()
+	if !strings.Contains(bodyStr, "This is an S/MIME signed message") {
+		t.Error("Body should contain S/MIME signed message marker even with empty content")
+	}
+}
+
+// TestCreateSignedMimeMessageEntity_ComplexContent tests with complex MIME content
+func TestCreateSignedMimeMessageEntity_ComplexContent(t *testing.T) {
+	// Create test certificate and key
+	cert, key := createTestCertAndKey(t)
+
+	// Create signer
+	signer := &Signer{
+		Cert:   cert,
+		Key:    key,
+		Domain: "testdomain.com",
+	}
+
+	// Create complex MIME content (multipart/mixed)
+	complexContent := []byte(`From: sender@example.com
+To: recipient@example.com
+Subject: Complex Test Email
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="boundary123"
+
+--boundary123
+Content-Type: text/plain; charset=utf-8
+
+This is the text part.
+
+--boundary123
+Content-Type: application/xml
+
+<xml>test</xml>
+--boundary123--
+`)
+
+	// Test the function
+	entity, err := signer.CreateSignedMimeMessageEntity(complexContent)
+	if err != nil {
+		t.Fatalf("CreateSignedMimeMessageEntity failed with complex content: %v", err)
+	}
+
+	if entity == nil {
+		t.Fatal("CreateSignedMimeMessageEntity returned nil entity with complex content")
+	}
+
+	// Verify the entity can be written
+	var buf bytes.Buffer
+	err = entity.WriteTo(&buf)
+	if err != nil {
+		t.Fatalf("Failed to write entity to buffer: %v", err)
+	}
+
+	bodyStr := buf.String()
+
+	// Check that complex content is preserved
+	if !strings.Contains(bodyStr, "multipart/mixed") {
+		t.Error("Body should contain original multipart/mixed content type")
+	}
+
+	if !strings.Contains(bodyStr, "boundary123") {
+		t.Error("Body should contain original boundary")
+	}
+
+	if !strings.Contains(bodyStr, "This is the text part.") {
+		t.Error("Body should contain original text content")
+	}
+
+	if !strings.Contains(bodyStr, "<xml>test</xml>") {
+		t.Error("Body should contain original XML content")
+	}
+}
+
+// TestCreateSignedMimeMessageEntity_ErrorHandling tests error conditions
+func TestCreateSignedMimeMessageEntity_ErrorHandling(t *testing.T) {
+	// Test with nil signer
+	var signer *Signer
+	if signer != nil {
+		t.Error("Expected nil signer")
+	}
+
+	// Test with signer that has nil certificate
+	signer = &Signer{
+		Cert:   nil,
+		Key:    "invalid-key",
+		Domain: "testdomain.com",
+	}
+	_, err := signer.CreateSignedMimeMessageEntity([]byte("test"))
+	if err == nil {
+		t.Error("Expected error when certificate is nil")
+	}
+
+	// Test with signer that has nil key
+	cert, _ := createTestCertAndKey(t)
+	signer = &Signer{
+		Cert:   cert,
+		Key:    nil,
+		Domain: "testdomain.com",
+	}
+	_, err = signer.CreateSignedMimeMessageEntity([]byte("test"))
+	if err == nil {
+		t.Error("Expected error when key is nil")
 	}
 }

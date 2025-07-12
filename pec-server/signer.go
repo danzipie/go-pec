@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/emersion/go-message"
 	"go.mozilla.org/pkcs7"
@@ -70,7 +69,7 @@ func (s *Signer) CreateSignedMimeMessage(emailContent []byte) ([]byte, error) {
 	signedDataB64 := base64.StdEncoding.EncodeToString(signedData)
 
 	// Create the S/MIME message boundary
-	boundary := fmt.Sprintf("----=_NextPart_%d", time.Now().Unix())
+	boundary := "----=_NextPart_000_0000_01234567.89ABCDEF"
 
 	// Build the S/MIME multipart/signed message
 	var result strings.Builder
