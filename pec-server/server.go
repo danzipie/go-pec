@@ -60,7 +60,7 @@ func (s *PECServer) Start() error {
 	smtpBackend := NewBackend(s.signer, s.store)
 
 	// Create IMAP backend
-	imapBackend := NewIMAPBackend(s.store)
+	imapBackend := NewIMAPBackend(s.store, s.certificate, s.privateKey)
 
 	// Start IMAP server in a goroutine
 	go func() {

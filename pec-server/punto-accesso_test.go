@@ -474,3 +474,107 @@ func TestDatiCert_XMLMarshaling(t *testing.T) {
 		t.Errorf("Expected %d recipients, got %d", len(datiCert.To), len(parsed.To))
 	}
 }
+
+// TestGenerateAcceptanceEmail tests the main functionality of acceptance receipt generation
+func TestGenerateAcceptanceEmail(t *testing.T) {
+	// Create test certificate and key
+	cert, key := createTestCertAndKeyForNonAcceptance(t)
+
+	// Create signer
+	signer := &Signer{
+		Cert:   cert,
+		Key:    key,
+		Domain: "testdomain.com",
+	}
+
+	// Test data
+	domain := "testdomain.com"
+	messageID := "<test-message-id@example.com>"
+	from := "sender@example.com"
+	to := []string{"recipient1@testdomain.com", "recipient2@testdomain.com"}
+	subject := "Test Email Subject"
+
+	// Test the function
+	entity, err := GenerateAcceptanceEmail(domain, messageID, from, to, subject, signer)
+	if err != nil {
+		t.Fatalf("GenerateAcceptanceEmail failed: %v", err)
+	}
+
+	// Verify the entity is not nil
+	if entity == nil {
+		t.Fatal("GenerateAcceptanceEmail returned nil entity")
+	}
+
+	// Test headers
+	header := entity.Header
+
+	// Check X-Ricevuta header
+	if header.Get("X-Ricevuta") != "accettazione" {
+		t.Errorf("Expected X-Ricevuta header to be 'accettazione', got '%s'", header.Get("X-Ricevuta"))
+	}
+
+	// Check Date header (should be parseable)
+	dateStr := header.Get("Date")
+	if dateStr == "" {
+		t.Error("Date header is missing")
+	} else {
+		_, err := time.Parse(time.RFC1123Z, dateStr)
+		if err != nil {
+			t.Errorf("Date header is not in correct format: %v", err)
+		}
+	}
+
+	// Check Subject header
+	expectedSubject := "ACCETTAZIONE: Test Email Subject"
+	if header.Get("Subject") != expectedSubject {
+		t.Errorf("Expected Subject to be '%s', got '%s'", expectedSubject, header.Get("Subject"))
+	}
+
+	// Check From header
+	expectedFrom := "posta-certificata@testdomain.com"
+	if header.Get("From") != expectedFrom {
+		t.Errorf("Expected From to be '%s', got '%s'", expectedFrom, header.Get("From"))
+	}
+
+	// Check To header
+	if header.Get("To") != from {
+		t.Errorf("Expected To to be '%s', got '%s'", from, header.Get("To"))
+	}
+
+	// Check X-Riferimento-Message-ID header
+	if header.Get("X-Riferimento-Message-ID") != messageID {
+		t.Errorf("Expected X-Riferimento-Message-ID to be '%s', got '%s'", messageID, header.Get("X-Riferimento-Message-ID"))
+	}
+
+	// Check Content-Type header
+	contentType := header.Get("Content-Type")
+	if !strings.HasPrefix(contentType, "multipart/signed") {
+		t.Errorf("Expected Content-Type to start with 'multipart/signed', got '%s'", contentType)
+	}
+
+	// Read the body
+	body, err := io.ReadAll(entity.Body)
+	if err != nil {
+		t.Fatalf("Failed to read entity body: %v", err)
+	}
+
+	bodyStr := string(body)
+
+	// Check for specific content in the human-readable part
+	expectedTexts := []string{
+		"Ricevuta di accettazione",
+		"Test Email Subject",
+		"sender@example.com",
+		"recipient1@testdomain.com",
+		"recipient2@testdomain.com",
+		"posta certificata",
+		"è stato accettato dal sistema ed inoltrato",
+		"daticert.xml",
+	}
+
+	for _, text := range expectedTexts {
+		if !strings.Contains(bodyStr, text) {
+			t.Errorf("Expected body to contain '%s', but it was not found", text)
+		}
+	}
+}

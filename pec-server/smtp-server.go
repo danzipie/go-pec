@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
@@ -93,13 +94,6 @@ func (s *Session) Data(r io.Reader) error {
 	} else {
 		log.Println("Data:", string(b))
 		s.data.Write(b)
-		// Save the raw DATA to file, verbatim
-		if err := SaveRawEmailToFile(bytes.NewReader(b), "received_email.eml"); err != nil {
-			return err
-		}
-		if err := SaveSmtpEnvelopeToFile(s, "received_email.envelope.txt"); err != nil {
-			return err
-		}
 
 		// Parse the email and log the header and body
 		header, body, err := parseEmailFromSession(*s)
@@ -125,8 +119,13 @@ func (s *Session) Data(r io.Reader) error {
 				// Store the non-acceptance message in the IMAP store
 				if s.store != nil {
 					msg := convertToIMAPMessage(nonAcceptanceMsg)
+					log.Printf("Storing non-acceptance message in mailbox: %s", s.from)
 					if err := s.store.AddMessage(s.from, msg); err != nil {
 						return err
+					}
+					// Debug: check stored messages
+					if msgs, err := s.store.GetMessages(s.from); err == nil {
+						log.Printf("Messages in %s's mailbox: %d", s.from, len(msgs))
 					}
 				}
 			}
@@ -135,6 +134,10 @@ func (s *Session) Data(r io.Reader) error {
 			log.Println("Envelope and headers validation passed")
 			// Store the accepted message in the IMAP store
 			if s.store != nil {
+				// Create a body section for the full message
+				section := &imap.BodySectionName{}
+				literal := bytes.NewBuffer(s.data.Bytes())
+
 				msg := &imap.Message{
 					Envelope: &imap.Envelope{
 						Date:    time.Now(),
@@ -142,14 +145,21 @@ func (s *Session) Data(r io.Reader) error {
 						From:    []*imap.Address{{HostName: s.from}},
 						To:      []*imap.Address{{HostName: s.to[0]}},
 					},
-					Body:         make(map[*imap.BodySectionName]imap.Literal),
+					Body: map[*imap.BodySectionName]imap.Literal{
+						section: literal,
+					},
 					Flags:        []string{imap.SeenFlag},
 					InternalDate: time.Now(),
 					Size:         uint32(s.data.Len()),
 					Uid:          uint32(time.Now().Unix()),
 				}
+				log.Printf("Storing message in mailbox: %s", s.to[0])
 				if err := s.store.AddMessage(s.to[0], msg); err != nil {
 					return err
+				}
+				// Debug: check stored messages
+				if msgs, err := s.store.GetMessages(s.to[0]); err == nil {
+					log.Printf("Messages in %s's mailbox: %d", s.to[0], len(msgs))
 				}
 			}
 		}
@@ -263,9 +273,20 @@ func StartSMTP(addr string, domain string, backend *Backend) error {
 	s := smtp.NewServer(backend)
 	s.Addr = addr
 	s.Domain = domain
-	s.AllowInsecureAuth = true // For testing only
+	s.AllowInsecureAuth = true // Allow plain auth over STARTTLS
+	s.TLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{backend.signer.Cert.Raw},
+				PrivateKey:  backend.signer.Key,
+			},
+		},
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+		ClientAuth:         tls.NoClientCert,
+	}
 
-	log.Printf("Starting SMTP server at %v", s.Addr)
+	log.Printf("Starting SMTP server at %v with STARTTLS support", s.Addr)
 	return s.ListenAndServe()
 }
 

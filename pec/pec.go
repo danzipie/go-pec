@@ -33,12 +33,12 @@ type DatiCert struct {
 	Tipo         string   `xml:"tipo,attr"`
 	Errore       string   `xml:"errore,attr"`
 	Intestazione struct {
-		Mittente     string `xml:"mittente"`
-		Destinatario struct {
+		Mittente    string `xml:"mittente"`
+		Destinatari struct {
 			Tipo string `xml:"tipo,attr"`
 			Val  string `xml:",chardata"`
 		} `xml:"destinatari"`
-		Risposta string `xml:"risposte"`
+		Risposte string `xml:"risposte"`
 		Oggetto  string `xml:"oggetto"`
 	} `xml:"intestazione"`
 	Dati struct {
@@ -50,6 +50,6 @@ type DatiCert struct {
 		} `xml:"data"`
 		Identificativo string `xml:"identificativo"`
 		MsgID          string `xml:"msgid"`
-		ErroreEsteso   string `xml:"errore-esteso"`
+		ErroreEsteso   string `xml:"errore-esteso,omitempty"`
 	} `xml:"dati"`
 }

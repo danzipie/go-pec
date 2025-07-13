@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"log"
 	"time"
@@ -21,11 +23,15 @@ var (
 // IMAPBackend implements the IMAP server backend
 type IMAPBackend struct {
 	store store.MessageStore
+	cert  *x509.Certificate
+	key   interface{}
 }
 
-func NewIMAPBackend(store store.MessageStore) *IMAPBackend {
+func NewIMAPBackend(store store.MessageStore, cert *x509.Certificate, key interface{}) *IMAPBackend {
 	return &IMAPBackend{
 		store: store,
+		cert:  cert,
+		key:   key,
 	}
 }
 
@@ -239,6 +245,17 @@ func (m *IMAPMailbox) Expunge() error {
 func StartIMAP(addr string, backend *IMAPBackend) error {
 	s := imapserver.New(backend)
 	s.Addr = addr
-	log.Printf("Starting IMAP server at %v", addr)
-	return s.ListenAndServe()
+	s.TLSConfig = &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{backend.cert.Raw},
+				PrivateKey:  backend.key,
+			},
+		},
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: true,
+		ClientAuth:         tls.NoClientCert,
+	}
+	log.Printf("Starting IMAP server at %v with STARTTLS support", addr)
+	return s.ListenAndServe() // The go-imap server automatically supports STARTTLS
 }
