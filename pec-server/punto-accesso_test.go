@@ -568,7 +568,7 @@ func TestGenerateAcceptanceEmail(t *testing.T) {
 		"recipient1@testdomain.com",
 		"recipient2@testdomain.com",
 		"posta certificata",
-		"è stato accettato dal sistema ed inoltrato",
+		"=C3=A8 stato accettato dal sistema ed inoltrato",
 		"daticert.xml",
 	}
 
