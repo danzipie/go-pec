@@ -132,9 +132,14 @@ func (s *Session) Data(r io.Reader) error {
 			return err
 		} else {
 			log.Println("Envelope and headers validation passed")
-			// Store the accepted message in the IMAP store
 			if s.store != nil {
+				_, err := ProcessPECMessage(s.data.Bytes())
+				if err != nil {
+					log.Printf("Error creating PEC envelope: %v", err)
+					return err
+				}
 				// Create a body section for the full message
+				/**
 				section := &imap.BodySectionName{}
 				literal := bytes.NewBuffer(s.data.Bytes())
 
@@ -161,6 +166,7 @@ func (s *Session) Data(r io.Reader) error {
 				if msgs, err := s.store.GetMessages(s.to[0]); err == nil {
 					log.Printf("Messages in %s's mailbox: %d", s.to[0], len(msgs))
 				}
+					**/
 			}
 		}
 	}

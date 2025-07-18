@@ -373,3 +373,269 @@ func GenerateAcceptanceEmail(
 
 	return signedEmail, nil
 }
+
+// PECTransportEnvelope represents the PEC transport envelope
+type PECTransportEnvelope struct {
+	Headers map[string]string
+	Body    string
+	XMLData string // XML attachment data
+}
+
+// PECCertificationData contains the certification information
+type PECCertificationData struct {
+	MessageID       string
+	OriginalSubject string
+	OriginalFrom    string
+	Recipients      []string
+	Date            time.Time
+	Timezone        string
+}
+
+// CreatePECTransportEnvelope creates a PEC transport envelope from the original message
+func CreatePECTransportEnvelope(originalMsg *mail.Header, certData PECCertificationData) (*PECTransportEnvelope, error) {
+	envelope := &PECTransportEnvelope{
+		Headers: make(map[string]string),
+	}
+
+	// Inherit unchanged headers from original message
+	inheritedHeaders := []string{
+		"Received",
+		"To",
+		"Cc",
+		"Return-Path",
+		"Message-ID",
+		"X-Riferimento-Message-ID",
+		"X-TipoRicevuta",
+	}
+
+	for _, header := range inheritedHeaders {
+		if value := originalMsg.Header.Get(header); value != "" {
+			envelope.Headers[header] = value
+		}
+	}
+
+	// Set/modify required headers
+	envelope.Headers["X-Trasporto"] = "posta-certificata"
+	envelope.Headers["Date"] = certData.Date.Format(time.RFC1123Z)
+	envelope.Headers["Subject"] = fmt.Sprintf("POSTA CERTIFICATA: %s", certData.OriginalSubject)
+	envelope.Headers["From"] = fmt.Sprintf("Per conto di: %s", certData.OriginalFrom)
+
+	// Add Reply-To if not present in original
+	if originalMsg.Header.Get("Reply-To") == "" {
+		envelope.Headers["Reply-To"] = certData.OriginalFrom
+	}
+
+	// Create the body text
+	envelope.Body = createPECBodyText(certData)
+
+	// Generate XML certification data
+	envelope.XMLData = createPECXMLData(certData)
+
+	return envelope, nil
+}
+
+// createPECBodyText creates the human-readable body text for the PEC envelope
+func createPECBodyText(certData PECCertificationData) string {
+	// Format date and time
+	dateStr := certData.Date.Format("02/01/2006")
+	timeStr := certData.Date.Format("15:04:05")
+
+	// Build recipients list
+	recipientsList := strings.Join(certData.Recipients, "\n")
+
+	bodyText := fmt.Sprintf(`Messaggio di posta certificata
+
+Il giorno %s alle ore %s (%s) il messaggio
+"%s" è stato inviato da "%s"
+indirizzato a:
+%s
+
+Il messaggio originale è incluso in allegato.
+Identificativo messaggio: %s`,
+		dateStr,
+		timeStr,
+		certData.Timezone,
+		certData.OriginalSubject,
+		certData.OriginalFrom,
+		recipientsList,
+		certData.MessageID,
+	)
+
+	return bodyText
+}
+
+// createPECXMLData creates the XML attachment with certification data
+func createPECXMLData(certData PECCertificationData) string {
+	xmlData := fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<postacert xmlns="http://www.digitpa.gov.it/protocolli/postacert">
+    <intestazione>
+        <identificativo>%s</identificativo>
+        <mittente>%s</mittente>
+        <destinatari>`,
+		certData.MessageID,
+		certData.OriginalFrom,
+	)
+
+	// Add recipients
+	for _, recipient := range certData.Recipients {
+		xmlData += fmt.Sprintf(`
+            <destinatario>%s</destinatario>`, recipient)
+	}
+
+	xmlData += fmt.Sprintf(`
+        </destinatari>
+        <oggetto>%s</oggetto>
+        <data>%s</data>
+        <rilevanza>normale</rilevanza>
+        <conferma-ricezione>si</conferma-ricezione>
+    </intestazione>
+    <dati>
+        <tipo-messaggio>posta-certificata</tipo-messaggio>
+        <tipo-ricevuta>completa</tipo-ricevuta>
+        <errore-esteso></errore-esteso>
+    </dati>
+</postacert>`,
+		certData.OriginalSubject,
+		certData.Date.Format(time.RFC3339),
+	)
+
+	return xmlData
+}
+
+// FormatPECEnvelopeAsRFC2822 formats the PEC envelope as RFC 2822 compliant message
+func FormatPECEnvelopeAsRFC2822(envelope *PECTransportEnvelope, originalMessageRaw []byte) []byte {
+	var message strings.Builder
+
+	// Write headers
+	for header, value := range envelope.Headers {
+		message.WriteString(fmt.Sprintf("%s: %s\r\n", header, value))
+	}
+
+	// Add MIME headers for multipart message
+	boundary := generateBoundary()
+	message.WriteString(fmt.Sprintf("Content-Type: multipart/mixed; boundary=\"%s\"\r\n", boundary))
+	message.WriteString("MIME-Version: 1.0\r\n")
+	message.WriteString("\r\n")
+
+	// Body text part
+	message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	message.WriteString("Content-Type: text/plain; charset=UTF-8\r\n")
+	message.WriteString("Content-Transfer-Encoding: 8bit\r\n")
+	message.WriteString("\r\n")
+	message.WriteString(envelope.Body)
+	message.WriteString("\r\n\r\n")
+
+	// Original message attachment
+	message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	message.WriteString("Content-Type: message/rfc822\r\n")
+	message.WriteString("Content-Disposition: attachment; filename=\"messaggio-originale.eml\"\r\n")
+	message.WriteString("\r\n")
+	message.Write(originalMessageRaw)
+	message.WriteString("\r\n\r\n")
+
+	// XML data attachment
+	message.WriteString(fmt.Sprintf("--%s\r\n", boundary))
+	message.WriteString("Content-Type: application/xml\r\n")
+	message.WriteString("Content-Disposition: attachment; filename=\"postacert.xml\"\r\n")
+	message.WriteString("\r\n")
+	message.WriteString(envelope.XMLData)
+	message.WriteString("\r\n\r\n")
+
+	// End boundary
+	message.WriteString(fmt.Sprintf("--%s--\r\n", boundary))
+
+	return []byte(message.String())
+}
+
+// generateBoundary generates a MIME boundary string
+func generateBoundary() string {
+	return fmt.Sprintf("----=_NextPart_%d", time.Now().UnixNano())
+}
+
+// ParseEmailMessage parses a raw email message and returns a *mail.Reader.
+func ParseEmailMessage(rawMessage []byte) (*mail.Reader, error) {
+	reader := strings.NewReader(string(rawMessage))
+
+	// Parse the message entity
+	entity, err := message.Read(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse email message: %w", err)
+	}
+
+	// Wrap it in a mail.Reader to get structured headers
+	msgReader := mail.NewReader(entity)
+
+	return msgReader, nil
+}
+
+// ExtractRecipients extracts and cleans recipient addresses from To and Cc headers
+func ExtractRecipients(headers *mail.Header) []string {
+	recipients := []string{}
+
+	// Extract from To header
+	if to := headers.Get("To"); to != "" {
+		toAddrs, err := mail.ParseAddressList(to)
+		if err == nil {
+			for _, addr := range toAddrs {
+				recipients = append(recipients, addr.Address)
+			}
+		} else {
+			// Fallback to simple splitting if parsing fails
+			toAddrs := strings.Split(to, ",")
+			for _, addr := range toAddrs {
+				recipients = append(recipients, strings.TrimSpace(addr))
+			}
+		}
+	}
+
+	// Extract from Cc header
+	if cc := headers.Get("Cc"); cc != "" {
+		ccAddrs, err := mail.ParseAddressList(cc)
+		if err == nil {
+			for _, addr := range ccAddrs {
+				recipients = append(recipients, addr.Address)
+			}
+		} else {
+			// Fallback to simple splitting if parsing fails
+			ccAddrs := strings.Split(cc, ",")
+			for _, addr := range ccAddrs {
+				recipients = append(recipients, strings.TrimSpace(addr))
+			}
+		}
+	}
+
+	return recipients
+}
+
+// Example usage function
+func ProcessPECMessage(originalMessageRaw []byte) ([]byte, error) {
+	// Parse original message
+	mailReader, err := ParseEmailMessage(originalMessageRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse original message: %w", err)
+	}
+
+	// Extract recipients
+	recipients := ExtractRecipients(&mailReader.Header)
+
+	// Create certification data
+	certData := PECCertificationData{
+		MessageID:       mailReader.Header.Get("Message-ID"),
+		OriginalSubject: mailReader.Header.Get("Subject"),
+		OriginalFrom:    mailReader.Header.Get("From"),
+		Recipients:      recipients,
+		Date:            time.Now(),
+		Timezone:        "CET",
+	}
+
+	// Create transport envelope
+	envelope, err := CreatePECTransportEnvelope(&mailReader.Header, certData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transport envelope: %w", err)
+	}
+
+	// Format as RFC 2822 message
+	pecMessage := FormatPECEnvelopeAsRFC2822(envelope, originalMessageRaw)
+
+	return pecMessage, nil
+}
