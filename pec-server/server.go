@@ -6,17 +6,19 @@ import (
 	"log"
 
 	"github.com/danzipie/go-pec/pec-server/store"
+	"github.com/emersion/go-smtp"
 )
 
 // PECServer represents a complete PEC server instance
 type PECServer struct {
-	config      *Config
-	store       store.MessageStore
-	signer      *Signer
-	smtpAddress string
-	imapAddress string
-	certificate *x509.Certificate
-	privateKey  interface{}
+	config             *Config
+	store              store.MessageStore
+	signer             *Signer
+	smtpAddress        string
+	smtpNetworkAddress string
+	imapAddress        string
+	certificate        *x509.Certificate
+	privateKey         interface{}
 }
 
 // NewPECServer creates a new PEC server instance
@@ -44,13 +46,14 @@ func NewPECServer(configPath string) (*PECServer, error) {
 	messageStore := store.NewInMemoryStore()
 
 	return &PECServer{
-		config:      cfg,
-		store:       messageStore,
-		signer:      signer,
-		smtpAddress: cfg.SMTPServer,
-		imapAddress: cfg.IMAPServer,
-		certificate: cert,
-		privateKey:  key,
+		config:             cfg,
+		store:              messageStore,
+		signer:             signer,
+		smtpAddress:        cfg.SMTPServer,
+		smtpNetworkAddress: cfg.SMTPNetworkServer,
+		imapAddress:        cfg.IMAPServer,
+		certificate:        cert,
+		privateKey:         key,
 	}, nil
 }
 
@@ -69,11 +72,26 @@ func (s *PECServer) Start() error {
 		}
 	}()
 
+	go func() {
+		// Create punto di consegna server
+		PuntoConsegnaServer := NewPuntoConsegnaServer("pec.example.com")
+
+		// Create SMTP server
+		smtpServer := smtp.NewServer(PuntoConsegnaServer.NewBackend())
+		smtpServer.Addr = ":1026"
+		smtpServer.Domain = "pec.example.com"
+		smtpServer.AllowInsecureAuth = true // For development only
+
+		log.Println("PEC Punto di Consegna server starting on :1026")
+		log.Fatal(smtpServer.ListenAndServe())
+
+	}()
+
 	// Start SMTP server (blocking)
 	return StartSMTP(s.smtpAddress, s.config.Domain, smtpBackend)
 }
 
-// Stop gracefully shuts down both servers
+// Stop gracefully shuts down all servers
 func (s *PECServer) Stop() error {
 	// Close the message store
 	if err := s.store.Close(); err != nil {

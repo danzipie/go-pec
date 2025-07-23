@@ -6,11 +6,12 @@ import (
 )
 
 type Config struct {
-	Domain     string `json:"domain"`
-	SMTPServer string `json:"smtp_server"`
-	IMAPServer string `json:"imap_server"`
-	CertFile   string `json:"cert_file"`
-	KeyFile    string `json:"key_file"`
+	Domain            string `json:"domain"`
+	SMTPServer        string `json:"smtp_server"`
+	SMTPNetworkServer string `json:"smtp_network_server"`
+	IMAPServer        string `json:"imap_server"`
+	CertFile          string `json:"cert_file"`
+	KeyFile           string `json:"key_file"`
 }
 
 func LoadConfig(path string) (*Config, error) {
