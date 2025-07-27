@@ -94,80 +94,10 @@ func (s *Session) Data(r io.Reader) error {
 	} else {
 		log.Println("Data:", string(b))
 		s.data.Write(b)
-
-		// Parse the email and log the header and body
-		header, body, err := parseEmailFromSession(*s)
-		if err != nil {
+		// Process the email data
+		if err := AccessPointHandler(s); err != nil {
+			log.Println("Error processing email data:", err)
 			return err
-		}
-		log.Println("Parsed Email Header:", header)
-		log.Println("Parsed Email Body:", string(body))
-		r := bytes.NewReader(s.data.Bytes())
-		mr, err := mail.CreateReader(r)
-		if err != nil {
-			return err
-		}
-		if err := ValidateEnvelopeAndHeaders(s.from, s.to, mr); err != nil {
-			if valErr, ok := err.(ValidationError); ok {
-				log.Println("Validation Error:", valErr)
-				// emit message of non-acceptance
-				nonAcceptanceMsg, err := GenerateNonAcceptanceEmail("localhost", valErr, s.signer)
-				if err != nil {
-					return err
-				}
-
-				// Store the non-acceptance message in the IMAP store
-				if s.store != nil {
-					msg := convertToIMAPMessage(nonAcceptanceMsg)
-					log.Printf("Storing non-acceptance message in mailbox: %s", s.from)
-					if err := s.store.AddMessage(s.from, msg); err != nil {
-						return err
-					}
-					// Debug: check stored messages
-					if msgs, err := s.store.GetMessages(s.from); err == nil {
-						log.Printf("Messages in %s's mailbox: %d", s.from, len(msgs))
-					}
-				}
-			}
-			return err
-		} else {
-			log.Println("Envelope and headers validation passed")
-			if s.store != nil {
-				_, err := ProcessPECMessage(s.data.Bytes())
-				if err != nil {
-					log.Printf("Error creating PEC envelope: %v", err)
-					return err
-				}
-				// Create a body section for the full message
-				/**
-				section := &imap.BodySectionName{}
-				literal := bytes.NewBuffer(s.data.Bytes())
-
-				msg := &imap.Message{
-					Envelope: &imap.Envelope{
-						Date:    time.Now(),
-						Subject: header.Get("Subject"),
-						From:    []*imap.Address{{HostName: s.from}},
-						To:      []*imap.Address{{HostName: s.to[0]}},
-					},
-					Body: map[*imap.BodySectionName]imap.Literal{
-						section: literal,
-					},
-					Flags:        []string{imap.SeenFlag},
-					InternalDate: time.Now(),
-					Size:         uint32(s.data.Len()),
-					Uid:          uint32(time.Now().Unix()),
-				}
-				log.Printf("Storing message in mailbox: %s", s.to[0])
-				if err := s.store.AddMessage(s.to[0], msg); err != nil {
-					return err
-				}
-				// Debug: check stored messages
-				if msgs, err := s.store.GetMessages(s.to[0]); err == nil {
-					log.Printf("Messages in %s's mailbox: %d", s.to[0], len(msgs))
-				}
-					**/
-			}
 		}
 	}
 	return nil

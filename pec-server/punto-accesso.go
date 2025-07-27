@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/xml"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -24,6 +25,85 @@ type ValidationError struct {
 
 func (e ValidationError) Error() string {
 	return fmt.Sprintf("validation failed: %s", e.Reason)
+}
+
+func AccessPointHandler(s *Session) error {
+
+	// Parse the email and log the header and body
+	header, body, err := parseEmailFromSession(*s)
+	if err != nil {
+		return err
+	}
+	log.Println("Parsed Email Header:", header)
+	log.Println("Parsed Email Body:", string(body))
+	r := bytes.NewReader(s.data.Bytes())
+	mr, err := mail.CreateReader(r)
+	if err != nil {
+		return err
+	}
+	if err := ValidateEnvelopeAndHeaders(s.from, s.to, mr); err != nil {
+		if valErr, ok := err.(ValidationError); ok {
+			log.Println("Validation Error:", valErr)
+			// emit message of non-acceptance
+			nonAcceptanceMsg, err := GenerateNonAcceptanceEmail("localhost", valErr, s.signer)
+			if err != nil {
+				return err
+			}
+
+			// Store the non-acceptance message in the IMAP store
+			if s.store != nil {
+				msg := convertToIMAPMessage(nonAcceptanceMsg)
+				log.Printf("Storing non-acceptance message in mailbox: %s", s.from)
+				if err := s.store.AddMessage(s.from, msg); err != nil {
+					return err
+				}
+				// Debug: check stored messages
+				if msgs, err := s.store.GetMessages(s.from); err == nil {
+					log.Printf("Messages in %s's mailbox: %d", s.from, len(msgs))
+				}
+			}
+		}
+		return err
+	} else {
+		log.Println("Envelope and headers validation passed")
+		if s.store != nil {
+			_, err := ProcessPECMessage(s.data.Bytes())
+			if err != nil {
+				log.Printf("Error creating PEC envelope: %v", err)
+				return err
+			}
+			// Create a body section for the full message
+			/**
+			section := &imap.BodySectionName{}
+			literal := bytes.NewBuffer(s.data.Bytes())
+
+			msg := &imap.Message{
+				Envelope: &imap.Envelope{
+					Date:    time.Now(),
+					Subject: header.Get("Subject"),
+					From:    []*imap.Address{{HostName: s.from}},
+					To:      []*imap.Address{{HostName: s.to[0]}},
+				},
+				Body: map[*imap.BodySectionName]imap.Literal{
+					section: literal,
+				},
+				Flags:        []string{imap.SeenFlag},
+				InternalDate: time.Now(),
+				Size:         uint32(s.data.Len()),
+				Uid:          uint32(time.Now().Unix()),
+			}
+			log.Printf("Storing message in mailbox: %s", s.to[0])
+			if err := s.store.AddMessage(s.to[0], msg); err != nil {
+				return err
+			}
+			// Debug: check stored messages
+			if msgs, err := s.store.GetMessages(s.to[0]); err == nil {
+				log.Printf("Messages in %s's mailbox: %d", s.to[0], len(msgs))
+			}
+				**/
+		}
+	}
+	return nil
 }
 
 // ValidateEnvelopeAndHeaders checks compliance between SMTP envelope and RFC822 headers.
@@ -552,62 +632,7 @@ func generateBoundary() string {
 	return fmt.Sprintf("----=_NextPart_%d", time.Now().UnixNano())
 }
 
-// ParseEmailMessage parses a raw email message and returns a *mail.Reader.
-func ParseEmailMessage(rawMessage []byte) (*mail.Reader, error) {
-	reader := strings.NewReader(string(rawMessage))
-
-	// Parse the message entity
-	entity, err := message.Read(reader)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse email message: %w", err)
-	}
-
-	// Wrap it in a mail.Reader to get structured headers
-	msgReader := mail.NewReader(entity)
-
-	return msgReader, nil
-}
-
-// ExtractRecipients extracts and cleans recipient addresses from To and Cc headers
-func ExtractRecipients(headers *mail.Header) []string {
-	recipients := []string{}
-
-	// Extract from To header
-	if to := headers.Get("To"); to != "" {
-		toAddrs, err := mail.ParseAddressList(to)
-		if err == nil {
-			for _, addr := range toAddrs {
-				recipients = append(recipients, addr.Address)
-			}
-		} else {
-			// Fallback to simple splitting if parsing fails
-			toAddrs := strings.Split(to, ",")
-			for _, addr := range toAddrs {
-				recipients = append(recipients, strings.TrimSpace(addr))
-			}
-		}
-	}
-
-	// Extract from Cc header
-	if cc := headers.Get("Cc"); cc != "" {
-		ccAddrs, err := mail.ParseAddressList(cc)
-		if err == nil {
-			for _, addr := range ccAddrs {
-				recipients = append(recipients, addr.Address)
-			}
-		} else {
-			// Fallback to simple splitting if parsing fails
-			ccAddrs := strings.Split(cc, ",")
-			for _, addr := range ccAddrs {
-				recipients = append(recipients, strings.TrimSpace(addr))
-			}
-		}
-	}
-
-	return recipients
-}
-
-// Example usage function
+// ProcessPECMessage receives a raw email message, processes it, and returns a formatted PEC message
 func ProcessPECMessage(originalMessageRaw []byte) ([]byte, error) {
 	// Parse original message
 	mailReader, err := ParseEmailMessage(originalMessageRaw)
