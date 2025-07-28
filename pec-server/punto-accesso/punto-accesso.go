@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/danzipie/go-pec/pec-server/internal/common"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 )
@@ -27,47 +28,61 @@ func (e ValidationError) Error() string {
 	return fmt.Sprintf("validation failed: %s", e.Reason)
 }
 
-func AccessPointHandler(s *Session) error {
+func AccessPointHandler(s *common.Session) error {
 
 	// Parse the email and log the header and body
-	header, body, err := parseEmailFromSession(*s)
+	header, body, err := common.ParseEmailFromSession(*s)
 	if err != nil {
 		return err
 	}
 	log.Println("Parsed Email Header:", header)
 	log.Println("Parsed Email Body:", string(body))
-	r := bytes.NewReader(s.data.Bytes())
+	data, err := s.GetData()
+	if err != nil {
+		log.Println("No data in session, skipping processing")
+		return nil
+	}
+	r := bytes.NewReader(data)
 	mr, err := mail.CreateReader(r)
 	if err != nil {
 		return err
 	}
-	if err := ValidateEnvelopeAndHeaders(s.from, s.to, mr); err != nil {
+	if err := ValidateEnvelopeAndHeaders(s.From, s.To, mr); err != nil {
 		if valErr, ok := err.(ValidationError); ok {
 			log.Println("Validation Error:", valErr)
+			signer := s.GetSigner()
+			if signer == nil {
+				return fmt.Errorf("no signer available for non-acceptance email")
+			}
 			// emit message of non-acceptance
-			nonAcceptanceMsg, err := GenerateNonAcceptanceEmail("localhost", valErr, s.signer)
+			nonAcceptanceMsg, err := GenerateNonAcceptanceEmail("localhost", valErr, signer)
 			if err != nil {
 				return err
 			}
 
 			// Store the non-acceptance message in the IMAP store
-			if s.store != nil {
-				msg := convertToIMAPMessage(nonAcceptanceMsg)
-				log.Printf("Storing non-acceptance message in mailbox: %s", s.from)
-				if err := s.store.AddMessage(s.from, msg); err != nil {
+			if s.Store != nil {
+				msg := common.ConvertToIMAPMessage(nonAcceptanceMsg)
+				log.Printf("Storing non-acceptance message in mailbox: %s", s.From)
+				if err := s.Store.AddMessage(s.From, msg); err != nil {
 					return err
 				}
 				// Debug: check stored messages
-				if msgs, err := s.store.GetMessages(s.from); err == nil {
-					log.Printf("Messages in %s's mailbox: %d", s.from, len(msgs))
+				if msgs, err := s.Store.GetMessages(s.From); err == nil {
+					log.Printf("Messages in %s's mailbox: %d", s.From, len(msgs))
 				}
 			}
 		}
 		return err
 	} else {
 		log.Println("Envelope and headers validation passed")
-		if s.store != nil {
-			_, err := ProcessPECMessage(s.data.Bytes())
+		if s.Store != nil {
+			data, dErr := s.GetData()
+			if dErr != nil {
+				log.Println("No data in session, skipping processing")
+				return nil
+			}
+			_, err := ProcessPECMessage(data)
 			if err != nil {
 				log.Printf("Error creating PEC envelope: %v", err)
 				return err
@@ -176,7 +191,7 @@ type DatiCert struct {
 func GenerateNonAcceptanceEmail(
 	domain string,
 	validationError ValidationError,
-	signer *Signer,
+	signer *common.Signer,
 ) (*message.Entity, error) {
 
 	// Part 1: human-readable explanation
@@ -287,7 +302,7 @@ func GenerateAcceptanceEmail(
 	from string,
 	to []string,
 	subject string,
-	signer *Signer,
+	signer *common.Signer,
 ) (*message.Entity, error) {
 	now := time.Now()
 
@@ -635,13 +650,13 @@ func generateBoundary() string {
 // ProcessPECMessage receives a raw email message, processes it, and returns a formatted PEC message
 func ProcessPECMessage(originalMessageRaw []byte) ([]byte, error) {
 	// Parse original message
-	mailReader, err := ParseEmailMessage(originalMessageRaw)
+	mailReader, err := common.ParseEmailMessage(originalMessageRaw)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse original message: %w", err)
 	}
 
 	// Extract recipients
-	recipients := ExtractRecipients(&mailReader.Header)
+	recipients := common.ExtractRecipients(&mailReader.Header)
 
 	// Create certification data
 	certData := PECCertificationData{

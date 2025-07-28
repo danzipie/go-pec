@@ -5,8 +5,8 @@ all: clean cert build test
 
 # Build the project
 build:
-	@echo "Building PEC server..."
-	@cd pec-server && go build -v -o pec-server .
+	@echo "Building Punto accesso server..."
+	@cd pec-server/punto-accesso && go build -v -o pec-punto-accesso .
 
 # Run tests
 test:
@@ -16,8 +16,8 @@ test:
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
-	@rm -f pec-server/pec-server
-	@rm -f pec-server/pec.log
+	@rm -f pec-server/punto-accesso/pec-punto-accesso
+	@rm -f pec-server/punto-accesso/pec.log
 
 # Generate certificates
 cert:
@@ -29,8 +29,8 @@ cert:
 
 # Run the server
 run: build
-	@echo "Starting PEC server..."
-	@cd pec-server && ./pec-server
+	@echo "Starting Punto accesso server..."
+	@cd pec-server/punto-accesso && ./pec-punto-accesso
 
 # Install dependencies
 deps:

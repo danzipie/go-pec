@@ -1,9 +1,12 @@
-package main
+package common
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/emersion/go-imap"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 )
@@ -61,4 +64,27 @@ func ExtractRecipients(headers *mail.Header) []string {
 	}
 
 	return recipients
+}
+
+// Helper function to convert message.Entity to imap.Message
+func ConvertToIMAPMessage(entity *message.Entity) *imap.Message {
+	msg := &imap.Message{
+		Envelope: &imap.Envelope{
+			Date:    time.Now(),
+			Subject: entity.Header.Get("Subject"),
+			From:    []*imap.Address{{HostName: entity.Header.Get("From")}},
+			To:      []*imap.Address{{HostName: entity.Header.Get("To")}},
+		},
+		Body:         make(map[*imap.BodySectionName]imap.Literal),
+		Flags:        []string{imap.SeenFlag},
+		InternalDate: time.Now(),
+		Uid:          uint32(time.Now().Unix()),
+	}
+
+	// Store the message body
+	var buf bytes.Buffer
+	entity.WriteTo(&buf)
+	msg.Size = uint32(buf.Len())
+
+	return msg
 }

@@ -21,8 +21,8 @@ jobs:
       with:
         go-version: '1.23.0'
 
-    - name: Build
-      run: go build -v ./...
+    - name: Build punto-accesso
+      run: go build -v ./pec-server/punto-accesso
 
     - name: Test
       run: go test -v ./...

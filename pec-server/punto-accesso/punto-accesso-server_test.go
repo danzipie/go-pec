@@ -8,10 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/danzipie/go-pec/pec-server/internal/common"
 	"github.com/danzipie/go-pec/pec-server/store"
 )
 
-func TestNewPECServer(t *testing.T) {
+func TestNewPuntoAccessoServer(t *testing.T) {
 	// Create a temporary config file
 	configContent := `{
 		"domain": "localhost",
@@ -41,9 +42,9 @@ func TestNewPECServer(t *testing.T) {
 	defer os.Remove("test_key.pem")
 
 	// Test server creation
-	server, err := NewPECServer(tmpConfig)
+	server, err := NewPuntoAccessoServer(tmpConfig)
 	if err != nil {
-		t.Fatalf("Failed to create PEC server: %v", err)
+		t.Fatalf("Failed to create Punto Accesso server: %v", err)
 	}
 
 	// Verify server configuration
@@ -64,11 +65,11 @@ func TestNewPECServer(t *testing.T) {
 	}
 }
 
-func TestPECServerIntegration(t *testing.T) {
+func TestPuntoAccessoServerIntegration(t *testing.T) {
 	t.Skip("Skipping integration test")
 	// Create a test server
-	server := &PECServer{
-		config: &Config{
+	server := &PuntoAccessoServer{
+		config: &common.Config{
 			Domain:     "localhost",
 			SMTPServer: "localhost:2025", // Use different ports for test
 			IMAPServer: "localhost:2143",
@@ -97,7 +98,7 @@ func TestPECServerIntegration(t *testing.T) {
 	defer os.Remove("test_key.pem")
 
 	// Load the credentials
-	cert, privKey, err := LoadSMIMECredentials("test_cert.pem", "test_key.pem")
+	cert, privKey, err := common.LoadSMIMECredentials("test_cert.pem", "test_key.pem")
 	if err != nil {
 		t.Fatalf("Failed to load S/MIME credentials: %v", err)
 	}

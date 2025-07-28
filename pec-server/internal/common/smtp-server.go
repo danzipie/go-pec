@@ -1,4 +1,4 @@
-package main
+package common
 
 import (
 	"bytes"
@@ -9,11 +9,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"time"
 
 	"github.com/danzipie/go-pec/pec-server/store"
-	"github.com/emersion/go-imap"
-	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -21,33 +18,79 @@ import (
 
 // The Backend implements SMTP server methods.
 type Backend struct {
-	signer *Signer
-	store  store.MessageStore
+	signer  *Signer
+	store   store.MessageStore
+	handler func(*Session) error
 }
 
-func NewBackend(signer *Signer, store store.MessageStore) *Backend {
+func NewBackend(signer *Signer, store store.MessageStore, handler func(*Session) error) *Backend {
 	return &Backend{
-		signer: signer,
-		store:  store,
+		signer:  signer,
+		store:   store,
+		handler: handler,
 	}
 }
 
 // NewSession is called after client greeting (EHLO, HELO).
 func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 	return &Session{
-		signer: bkd.signer,
-		store:  bkd.store,
+		signer:  bkd.signer,
+		Store:   bkd.store,
+		handler: bkd.handler,
 	}, nil
 }
 
 // A Session is returned after successful login.
 type Session struct {
-	from   string
-	to     []string
-	data   bytes.Buffer
-	auth   bool
-	signer *Signer
-	store  store.MessageStore
+	From    string
+	To      []string
+	data    bytes.Buffer
+	auth    bool
+	signer  *Signer
+	Store   store.MessageStore
+	handler func(*Session) error
+}
+
+func (s *Session) GetFrom() (string, error) {
+	if !s.auth {
+		return "", smtp.ErrAuthRequired
+	}
+	return s.From, nil
+}
+
+func (s *Session) GetTo() ([]string, error) {
+	if !s.auth {
+		return nil, smtp.ErrAuthRequired
+	}
+	return s.To, nil
+}
+
+func (s *Session) GetData() ([]byte, error) {
+	if !s.auth {
+		return nil, smtp.ErrAuthRequired
+	}
+	return s.data.Bytes(), nil
+}
+
+func (s *Session) GetSigner() *Signer {
+	if !s.auth {
+		return nil
+	}
+	return s.signer
+}
+
+func (s *Session) GetStore() store.MessageStore {
+	if !s.auth {
+		return nil
+	}
+	return s.Store
+}
+
+func (s *Session) GetHandler() func(*Session) error {
+	if !s.auth {
+		return nil
+	}
+	return s.handler
 }
 
 // AuthMechanisms returns a slice of available auth mechanisms; only PLAIN is
@@ -72,7 +115,7 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 		return smtp.ErrAuthRequired
 	}
 	log.Println("Mail from:", from)
-	s.from = from
+	s.From = from
 	return nil
 }
 
@@ -81,7 +124,7 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 		return smtp.ErrAuthRequired
 	}
 	log.Println("Rcpt to:", to)
-	s.to = append(s.to, to)
+	s.To = append(s.To, to)
 	return nil
 }
 
@@ -95,7 +138,7 @@ func (s *Session) Data(r io.Reader) error {
 		log.Println("Data:", string(b))
 		s.data.Write(b)
 		// Process the email data
-		if err := AccessPointHandler(s); err != nil {
+		if err := s.handler(s); err != nil {
 			log.Println("Error processing email data:", err)
 			return err
 		}
@@ -109,44 +152,7 @@ func (s *Session) Logout() error {
 	return nil
 }
 
-func SaveSmtpEnvelopeToFile(s *Session, filename string) error {
-	f, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Write the SMTP envelope to the file
-	if _, err := f.WriteString("Return-Path: " + s.from + "\n"); err != nil {
-		return err
-	}
-	for _, recipient := range s.to {
-		if _, err := f.WriteString("Forward-Path: " + recipient + "\n"); err != nil {
-			return err
-		}
-	}
-	f.WriteString("\n") // End of headers
-
-	// Write the raw DATA bytes to the file
-	if _, err := f.Write(s.data.Bytes()); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// SaveRawEmailToFile saves the raw DATA bytes to a file as-is.
-func SaveRawEmailToFile(r io.Reader, filename string) error {
-	f, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = io.Copy(f, r)
-	return err
-}
-
-func parseEmailFromSession(s Session) (*mail.Header, []byte, error) {
+func ParseEmailFromSession(s Session) (*mail.Header, []byte, error) {
 	r := bytes.NewReader(s.data.Bytes())
 	mr, err := mail.CreateReader(r)
 	if err != nil {
@@ -224,27 +230,4 @@ func StartSMTP(addr string, domain string, backend *Backend) error {
 
 	log.Printf("Starting SMTP server at %v with STARTTLS support", s.Addr)
 	return s.ListenAndServe()
-}
-
-// Helper function to convert message.Entity to imap.Message
-func convertToIMAPMessage(entity *message.Entity) *imap.Message {
-	msg := &imap.Message{
-		Envelope: &imap.Envelope{
-			Date:    time.Now(),
-			Subject: entity.Header.Get("Subject"),
-			From:    []*imap.Address{{HostName: entity.Header.Get("From")}},
-			To:      []*imap.Address{{HostName: entity.Header.Get("To")}},
-		},
-		Body:         make(map[*imap.BodySectionName]imap.Literal),
-		Flags:        []string{imap.SeenFlag},
-		InternalDate: time.Now(),
-		Uid:          uint32(time.Now().Unix()),
-	}
-
-	// Store the message body
-	var buf bytes.Buffer
-	entity.WriteTo(&buf)
-	msg.Size = uint32(buf.Len())
-
-	return msg
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/danzipie/go-pec/pec-server/logger"
 )
 
+// Main entry point for the PEC Punto accesso server
 func main() {
 	// Initialize logger
 	if err := logger.Init("pec.log"); err != nil {
@@ -17,7 +18,7 @@ func main() {
 	defer logger.Sync()
 
 	// Create and start PEC server
-	server, err := NewPECServer("config.json")
+	server, err := NewPuntoAccessoServer("config.json")
 	if err != nil {
 		log.Fatalf("Failed to create PEC server: %v", err)
 	}

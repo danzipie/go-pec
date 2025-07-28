@@ -3,6 +3,5 @@
     "cert_file": "cert.pem",
     "key_file": "key.pem",
     "smtp_server": "localhost:1025",
-    "smtp_network_server": "localhost:1026",
     "imap_server": "localhost:1143"
 }

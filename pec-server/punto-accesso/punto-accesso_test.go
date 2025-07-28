@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/danzipie/go-pec/pec-server/internal/common"
 )
 
 // Helper function to create test certificate and key (reused from previous test)
@@ -63,7 +65,7 @@ func TestGenerateNonAcceptanceEmail(t *testing.T) {
 	cert, key := createTestCertAndKeyForNonAcceptance(t)
 
 	// Create signer
-	signer := &Signer{
+	signer := &common.Signer{
 		Cert:   cert,
 		Key:    key,
 		Domain: "testdomain.com",
@@ -148,7 +150,7 @@ func TestGenerateNonAcceptanceEmail_ContentVerification(t *testing.T) {
 	cert, key := createTestCertAndKeyForNonAcceptance(t)
 
 	// Create signer
-	signer := &Signer{
+	signer := &common.Signer{
 		Cert:   cert,
 		Key:    key,
 		Domain: "testdomain.com",
@@ -215,7 +217,7 @@ func TestGenerateNonAcceptanceEmail_XMLContent(t *testing.T) {
 	cert, key := createTestCertAndKeyForNonAcceptance(t)
 
 	// Create signer
-	signer := &Signer{
+	signer := &common.Signer{
 		Cert:   cert,
 		Key:    key,
 		Domain: "testdomain.com",
@@ -316,7 +318,7 @@ func TestGenerateNonAcceptanceEmail_XMLContent(t *testing.T) {
 // TestGenerateNonAcceptanceEmail_SignerError tests error handling when signer fails
 func TestGenerateNonAcceptanceEmail_SignerError(t *testing.T) {
 	// Create signer with invalid key
-	signer := &Signer{
+	signer := &common.Signer{
 		Cert:   nil,
 		Key:    "invalid-key",
 		Domain: "testdomain.com",
@@ -351,7 +353,7 @@ func TestGenerateNonAcceptanceEmail_MultipleRecipients(t *testing.T) {
 	cert, key := createTestCertAndKeyForNonAcceptance(t)
 
 	// Create signer
-	signer := &Signer{
+	signer := &common.Signer{
 		Cert:   cert,
 		Key:    key,
 		Domain: "testdomain.com",
@@ -481,7 +483,7 @@ func TestGenerateAcceptanceEmail(t *testing.T) {
 	cert, key := createTestCertAndKeyForNonAcceptance(t)
 
 	// Create signer
-	signer := &Signer{
+	signer := &common.Signer{
 		Cert:   cert,
 		Key:    key,
 		Domain: "testdomain.com",
