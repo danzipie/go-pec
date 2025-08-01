@@ -3,9 +3,11 @@ package common
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/danzipie/go-pec/pec"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
@@ -87,4 +89,26 @@ func ConvertToIMAPMessage(entity *message.Entity) *imap.Message {
 	msg.Size = uint32(buf.Len())
 
 	return msg
+}
+
+// IsSignatureValid checks if the S/MIME signature of the message is valid.
+// It writes the body to a temporary file and calls verifySMIMEWithOpenSSL.
+func IsSignatureValid(header *mail.Header, body []byte) bool {
+	// Write body to a temporary file
+	tmpFile, err := os.CreateTemp("", "pec-smime-*.eml")
+	if err != nil {
+		return false
+	}
+	defer os.Remove(tmpFile.Name())
+	if _, err := tmpFile.Write(body); err != nil {
+		tmpFile.Close()
+		return false
+	}
+	tmpFile.Close()
+
+	// Use your OpenSSL-based verifier
+	if err := pec.VerifySMIMEWithOpenSSL(tmpFile.Name()); err != nil {
+		return false
+	}
+	return true
 }

@@ -217,7 +217,7 @@ func TestParseAndVerify(t *testing.T) {
 		t.Fatalf("failed to parse email: %v", e)
 	}
 
-	if verifySMIMEWithOpenSSL(filename) != nil {
+	if VerifySMIMEWithOpenSSL(filename) != nil {
 		t.Fatalf("Verification failed")
 	}
 }

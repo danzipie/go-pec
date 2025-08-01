@@ -9,7 +9,7 @@ import (
 	"github.com/danzipie/go-pec/pec-server/store"
 )
 
-// PECServer represents a complete PEC server instance
+// PuntoAccessoServer represents a complete Punto accesso server instance
 type PuntoAccessoServer struct {
 	config      *common.Config
 	store       store.MessageStore
@@ -20,7 +20,7 @@ type PuntoAccessoServer struct {
 	privateKey  interface{}
 }
 
-// NewPECServer creates a new PEC server instance
+// NewPuntoAccessoServer creates a new PEC punto Accesso server instance
 func NewPuntoAccessoServer(configPath string) (*PuntoAccessoServer, error) {
 	// Load configuration
 	cfg, err := common.LoadConfig(configPath)
@@ -58,7 +58,7 @@ func NewPuntoAccessoServer(configPath string) (*PuntoAccessoServer, error) {
 // Start starts both SMTP and IMAP servers
 func (s *PuntoAccessoServer) Start() error {
 	// Create SMTP backend
-	smtpBackend := common.NewBackend(s.signer, s.store, AccessPointHandler)
+	smtpBackend := common.NewBackend(s.signer, s.store, AccessPointHandler, s.config.Domain)
 
 	// Create IMAP backend
 	imapBackend := common.NewIMAPBackend(s.store, s.certificate, s.privateKey)

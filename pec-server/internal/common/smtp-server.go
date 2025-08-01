@@ -21,13 +21,15 @@ type Backend struct {
 	signer  *Signer
 	store   store.MessageStore
 	handler func(*Session) error
+	domain  string
 }
 
-func NewBackend(signer *Signer, store store.MessageStore, handler func(*Session) error) *Backend {
+func NewBackend(signer *Signer, store store.MessageStore, handler func(*Session) error, domain string) *Backend {
 	return &Backend{
 		signer:  signer,
 		store:   store,
 		handler: handler,
+		domain:  domain,
 	}
 }
 
@@ -37,6 +39,7 @@ func (bkd *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 		signer:  bkd.signer,
 		Store:   bkd.store,
 		handler: bkd.handler,
+		Domain:  bkd.domain,
 	}, nil
 }
 
@@ -49,6 +52,7 @@ type Session struct {
 	signer  *Signer
 	Store   store.MessageStore
 	handler func(*Session) error
+	Domain  string
 }
 
 func (s *Session) GetFrom() (string, error) {
