@@ -11,6 +11,7 @@ type Config struct {
 	IMAPServer string `json:"imap_server"`
 	CertFile   string `json:"cert_file"`
 	KeyFile    string `json:"key_file"`
+	APIServer  string `json:"api_server"`
 }
 
 func LoadConfig(path string) (*Config, error) {

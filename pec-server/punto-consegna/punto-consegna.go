@@ -2,82 +2,43 @@ package main
 
 import (
 	"bytes"
-	"crypto/rand"
 	"fmt"
 	"io"
 	"log"
 	"strings"
 	"time"
 
+	"github.com/danzipie/go-pec/pec-server/internal/common"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 )
 
-// PuntoConsegnaServer implements the PEC Punto di Consegna
-type PuntoConsegnaServer struct {
-	domain    string
-	mailboxes map[string]Mailbox // recipient -> mailbox
-}
-
-// Mailbox represents a destination mailbox
-type Mailbox interface {
-	DeliverMessage(msg *message.Entity) error
-	IsAvailable() bool
-}
-
 // SMTPClient interface for sending outbound messages
 type SMTPClient interface {
 	SendMessage(from, to string, msg *message.Entity) error
 }
 
-// PECBackend implements smtp.Backend for the PEC server
-type PECBackend struct {
-	server *PuntoConsegnaServer
-}
-
-// PECSession implements smtp.Session for handling individual SMTP sessions
-type PECSession struct {
+// PuntoConsegnaSession implements smtp.Session for handling individual SMTP sessions
+type PuntoConsegnaSession struct {
 	server *PuntoConsegnaServer
 	from   string
 	to     []string
 }
 
-// NewPuntoConsegnaServer creates a new PEC punto di consegna server
-func NewPuntoConsegnaServer(domain string) *PuntoConsegnaServer {
-	return &PuntoConsegnaServer{
-		domain:    domain,
-		mailboxes: make(map[string]Mailbox),
-	}
-}
-
-// RegisterMailbox adds a mailbox for a recipient
-func (s *PuntoConsegnaServer) RegisterMailbox(recipient string, mailbox Mailbox) {
-	s.mailboxes[recipient] = mailbox
-}
-
-// Backend implementation
-func (s *PuntoConsegnaServer) NewBackend() smtp.Backend {
-	return &PECBackend{server: s}
-}
-
-func (b *PECBackend) NewSession(_ *smtp.Conn) (smtp.Session, error) {
-	return &PECSession{server: b.server}, nil
-}
-
 // Session implementation
-func (s *PECSession) Mail(from string, opts *smtp.MailOptions) error {
+func (s *PuntoConsegnaSession) Mail(from string, opts *smtp.MailOptions) error {
 	s.from = from
 	return nil
 }
 
-func (s *PECSession) Rcpt(to string, opts *smtp.RcptOptions) error {
+func (s *PuntoConsegnaSession) Rcpt(to string, opts *smtp.RcptOptions) error {
 	s.to = append(s.to, to)
 	return nil
 }
 
-func (s *PECSession) Data(r io.Reader) error {
+func (s *PuntoConsegnaSession) Data(r io.Reader) error {
 	// Parse the incoming message
 	msg, err := message.Read(r)
 	if err != nil {
@@ -95,28 +56,26 @@ func (s *PECSession) Data(r io.Reader) error {
 	return nil
 }
 
-func (s *PECSession) Reset() {
+func (s *PuntoConsegnaSession) Reset() {
 	s.from = ""
 	s.to = nil
 }
 
-func (s *PECSession) Logout() error {
+func (s *PuntoConsegnaSession) Logout() error {
 	return nil
 }
 
 // processMessage handles the core PEC logic for a single recipient
-func (s *PECSession) processMessage(msg *message.Entity, recipient string) error {
+func (s *PuntoConsegnaSession) processMessage(msg *message.Entity, recipient string) error {
 	// Check if this is a transport envelope (busta di trasporto)
 	isTransportEnvelope := s.isTransportEnvelope(msg)
 
-	// Check if recipient mailbox exists and is available
-	mailbox, exists := s.server.mailboxes[recipient]
-	if !exists {
-		return fmt.Errorf("mailbox not found for recipient: %s", recipient)
+	var deliveryErr error
+	deliveryErr = nil
+	if isTransportEnvelope {
+		log.Printf("Processing transport envelope for recipient: %s", recipient)
+		deliveryErr = s.server.DeliverMessage(recipient, msg)
 	}
-
-	// Attempt delivery to mailbox
-	deliveryErr := mailbox.DeliverMessage(msg)
 
 	if deliveryErr != nil {
 		// Delivery failed - send non-delivery notice if it was a transport envelope
@@ -140,13 +99,13 @@ func (s *PECSession) processMessage(msg *message.Entity, recipient string) error
 }
 
 // isTransportEnvelope checks if the message is a PEC transport envelope
-func (s *PECSession) isTransportEnvelope(msg *message.Entity) bool {
+func (s *PuntoConsegnaSession) isTransportEnvelope(msg *message.Entity) bool {
 	header := msg.Header
 	xTrasporto := header.Get("X-Trasporto")
 	return strings.ToLower(xTrasporto) == "posta-certificata"
 }
 
-func (s *PECSession) SendEntity(receipt *message.Entity, to []string) error {
+func (s *PuntoConsegnaSession) SendEntity(receipt *message.Entity, to []string) error {
 	var w io.Writer
 	receipt.WriteTo(w)
 
@@ -160,7 +119,7 @@ func (s *PECSession) SendEntity(receipt *message.Entity, to []string) error {
 }
 
 // sendDeliveryReceipt sends a "ricevuta di avvenuta consegna"
-func (s *PECSession) sendDeliveryReceipt(originalSender string, originalMsg *message.Entity, recipient string) error {
+func (s *PuntoConsegnaSession) sendDeliveryReceipt(originalSender string, originalMsg *message.Entity, recipient string) error {
 	log.Printf("Sending delivery receipt to %s for message delivered to %s", originalSender, recipient)
 
 	// Create delivery receipt message
@@ -169,7 +128,7 @@ func (s *PECSession) sendDeliveryReceipt(originalSender string, originalMsg *mes
 }
 
 // sendNonDeliveryNotice sends an "avviso di mancata consegna"
-func (s *PECSession) sendNonDeliveryNotice(originalSender string, originalMsg *message.Entity, recipient string, deliveryErr error) error {
+func (s *PuntoConsegnaSession) sendNonDeliveryNotice(originalSender string, originalMsg *message.Entity, recipient string, deliveryErr error) error {
 	log.Printf("Sending non-delivery notice to %s for failed delivery to %s: %v", originalSender, recipient, deliveryErr)
 
 	// Create non-delivery notice
@@ -203,9 +162,9 @@ func parseReceiptType(msg *message.Entity) ReceiptType {
 }
 
 // createDeliveryReceipt creates a delivery receipt message based on the requested type
-func (s *PECSession) createDeliveryReceipt(originalMsg *message.Entity, recipient string) *message.Entity {
+func (s *PuntoConsegnaSession) createDeliveryReceipt(originalMsg *message.Entity, recipient string) *message.Entity {
 	// Generate unique message ID
-	msgID := generateMessageID(s.server.domain)
+	msgID := common.GenerateMessageID(s.server.domain)
 	timestamp := time.Now()
 
 	// Determine receipt type from original message
@@ -296,7 +255,7 @@ func determineRecipientType(originalMsg *message.Entity, recipient string) Recip
 }
 
 // createNormalReceiptBody creates the body for a normal delivery receipt
-func (s *PECSession) createNormalReceiptBody(originalMsg *message.Entity, recipient string, timestamp time.Time) io.Reader {
+func (s *PuntoConsegnaSession) createNormalReceiptBody(originalMsg *message.Entity, recipient string, timestamp time.Time) io.Reader {
 	// Determine recipient type to decide whether to include original message
 	recipientType := determineRecipientType(originalMsg, recipient)
 	includeOriginal := recipientType == RecipientTypePrimary || recipientType == RecipientTypeAmbiguous
@@ -393,7 +352,7 @@ Identificativo messaggio: %s`,
 }
 
 // createCertificationXML creates the XML certification data
-func (s *PECSession) createCertificationXML(originalMsg *message.Entity, recipient string, timestamp time.Time) string {
+func (s *PuntoConsegnaSession) createCertificationXML(originalMsg *message.Entity, recipient string, timestamp time.Time) string {
 	// Get original message details
 	originalSender := originalMsg.Header.Get("From")
 	originalSubject := originalMsg.Header.Get("Subject")
@@ -424,7 +383,7 @@ func (s *PECSession) createCertificationXML(originalMsg *message.Entity, recipie
 		<gestore-consegna>%s</gestore-consegna>
 	</dati-certificazione>
 </certificazione>`,
-		generateMessageID(s.server.domain),
+		common.GenerateMessageID(s.server.domain),
 		timestamp.Format(time.RFC3339),
 		originalSender,
 		recipient,
@@ -438,7 +397,7 @@ func (s *PECSession) createCertificationXML(originalMsg *message.Entity, recipie
 
 // createShortReceiptBody creates the body for a short delivery receipt
 // TODO: Implement reduced body with essential information only
-func (s *PECSession) createShortReceiptBody(originalMsg *message.Entity, recipient string, timestamp time.Time) io.Reader {
+func (s *PuntoConsegnaSession) createShortReceiptBody(originalMsg *message.Entity, recipient string, timestamp time.Time) io.Reader {
 	content := fmt.Sprintf(`Ricevuta di avvenuta consegna - BREVE
 
 Destinatario: %s
@@ -455,7 +414,7 @@ ID: %s
 
 // createSyntheticReceiptBody creates the body for a synthetic delivery receipt
 // TODO: Implement minimal body for synthetic receipt
-func (s *PECSession) createSyntheticReceiptBody(originalMsg *message.Entity, recipient string, timestamp time.Time) io.Reader {
+func (s *PuntoConsegnaSession) createSyntheticReceiptBody(originalMsg *message.Entity, recipient string, timestamp time.Time) io.Reader {
 	content := fmt.Sprintf(`Ricevuta sintetica
 
 Consegnato: %s - %s
@@ -468,9 +427,9 @@ Consegnato: %s - %s
 }
 
 // createNonDeliveryNotice creates a non-delivery notice message
-func (s *PECSession) createNonDeliveryNotice(originalMsg *message.Entity, recipient string, deliveryErr error) *message.Entity {
+func (s *PuntoConsegnaSession) createNonDeliveryNotice(originalMsg *message.Entity, recipient string, deliveryErr error) *message.Entity {
 	// Generate unique message ID
-	msgID := generateMessageID(s.server.domain)
+	msgID := common.GenerateMessageID(s.server.domain)
 	timestamp := time.Now()
 
 	// Create notice header
@@ -490,13 +449,4 @@ func (s *PECSession) createNonDeliveryNotice(originalMsg *message.Entity, recipi
 		Header: header,
 		Body:   strings.NewReader(body),
 	}
-}
-
-// generateMessageID generates a unique message ID
-func generateMessageID(domain string) string {
-	// Generate random bytes for uniqueness
-	b := make([]byte, 16)
-	rand.Read(b)
-
-	return fmt.Sprintf("<%x.%d@%s>", b, time.Now().Unix(), domain)
 }

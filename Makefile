@@ -8,6 +8,12 @@ build:
 	@echo "Building Punto accesso server..."
 	@cd pec-server/punto-accesso && go build -v -o pec-punto-accesso .
 
+	@echo "Building Punto ricezione server..."
+	@cd pec-server/punto-ricezione && go build -v -o pec-punto-ricezione .
+
+	@echo "Building Punto consegna server..."
+	@cd pec-server/punto-consegna && go build -v -o pec-punto-consegna .
+
 # Run tests
 test:
 	@echo "Running tests..."
@@ -18,6 +24,10 @@ clean:
 	@echo "Cleaning build artifacts..."
 	@rm -f pec-server/punto-accesso/pec-punto-accesso
 	@rm -f pec-server/punto-accesso/pec.log
+	@rm -f pec-server/punto-ricezione/pec-punto-ricezione
+	@rm -f pec-server/punto-ricezione/pec.log
+	@rm -f pec-server/punto-consegna/pec-punto-consegna
+	@rm -f pec-server/punto-consegna/pec.log
 
 # Generate certificates
 cert:
@@ -36,6 +46,13 @@ run: build
 deps:
 	@echo "Installing dependencies..."
 	@go mod download
+
+# Migrations
+migrate-up:
+	migrate -path pec-server/internal/storage/migrations -database "postgres://$$PGUSER:$$PGPASSWORD@$$PGHOST:$$PGPORT/$$PGDATABASE?sslmode=require" up
+
+migrate-down:
+	migrate -path pec-server/internal/storage/migrations -database "postgres://$$PGUSER:$$PGPASSWORD@$$PGHOST:$$PGPORT/$$PGDATABASE?sslmode=require" down
 
 # Help target
 help:

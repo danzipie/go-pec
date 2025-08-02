@@ -1,0 +1,8 @@
+{
+    "domain": "localhost",
+    "cert_file": "../cert.pem",
+    "key_file": "../key.pem",
+    "smtp_server": "localhost:1025",
+    "imap_server": "localhost:1143",
+    "api_server": "localhost:8080"
+}

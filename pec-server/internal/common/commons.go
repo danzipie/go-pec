@@ -2,6 +2,7 @@ package common
 
 import (
 	"bytes"
+	"crypto/rand"
 	"fmt"
 	"os"
 	"strings"
@@ -111,4 +112,13 @@ func IsSignatureValid(header *mail.Header, body []byte) bool {
 		return false
 	}
 	return true
+}
+
+// generateMessageID generates a unique message ID
+func GenerateMessageID(domain string) string {
+	// Generate random bytes for uniqueness
+	b := make([]byte, 16)
+	rand.Read(b)
+
+	return fmt.Sprintf("<%x.%d@%s>", b, time.Now().Unix(), domain)
 }

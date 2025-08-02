@@ -24,8 +24,11 @@ jobs:
     - name: Build punto-accesso
       run: go build -v ./pec-server/punto-accesso
     
-    - name: Build punto-accesso
+    - name: Build punto-ricezione
       run: go build -v ./pec-server/punto-ricezione
+
+    - name: Build punto-consegna
+      run: go build -v ./pec-server/punto-consegna
 
     - name: Test
       run: go test -v ./...
