@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/danzipie/go-pec/pec-server/internal/common"
-	"github.com/danzipie/go-pec/pec-server/store"
+	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
 	"go.mozilla.org/pkcs7"
@@ -23,7 +23,7 @@ import (
 // PuntoRicezioneServer represents a complete Punto ricezione server instance
 type PuntoRicezioneServer struct {
 	config      *common.Config
-	store       store.MessageStore
+	store       pec_storage.MessageStore
 	signer      *common.Signer
 	smtpAddress string
 	imapAddress string
@@ -53,7 +53,7 @@ func NewPuntoRicezioneServer(configPath string) (*PuntoRicezioneServer, error) {
 	}
 
 	// Create message store
-	messageStore := store.NewInMemoryStore()
+	messageStore := pec_storage.NewInMemoryStore()
 
 	return &PuntoRicezioneServer{
 		config:      cfg,

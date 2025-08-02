@@ -10,7 +10,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/danzipie/go-pec/pec-server/store"
+	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
@@ -19,12 +19,12 @@ import (
 // The Backend implements SMTP server methods.
 type Backend struct {
 	signer  *Signer
-	store   store.MessageStore
+	store   pec_storage.MessageStore
 	handler func(*Session) error
 	domain  string
 }
 
-func NewBackend(signer *Signer, store store.MessageStore, handler func(*Session) error, domain string) *Backend {
+func NewBackend(signer *Signer, store pec_storage.MessageStore, handler func(*Session) error, domain string) *Backend {
 	return &Backend{
 		signer:  signer,
 		store:   store,
@@ -50,7 +50,7 @@ type Session struct {
 	data    bytes.Buffer
 	auth    bool
 	signer  *Signer
-	Store   store.MessageStore
+	Store   pec_storage.MessageStore
 	handler func(*Session) error
 	Domain  string
 }
@@ -83,7 +83,7 @@ func (s *Session) GetSigner() *Signer {
 	return s.signer
 }
 
-func (s *Session) GetStore() store.MessageStore {
+func (s *Session) GetStore() pec_storage.MessageStore {
 	if !s.auth {
 		return nil
 	}

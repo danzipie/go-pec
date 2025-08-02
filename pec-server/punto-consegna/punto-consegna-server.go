@@ -5,19 +5,18 @@ import (
 	"fmt"
 
 	"github.com/danzipie/go-pec/pec-server/internal/common"
-	"github.com/danzipie/go-pec/pec-server/store"
+	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
 	"github.com/emersion/go-message"
 )
 
 // PuntoConsegnaServer represents a complete Punto Consegna server instance
 type PuntoConsegnaServer struct {
 	config      *common.Config
-	store       store.MessageStore
+	store       pec_storage.MessageStore
 	signer      *common.Signer
 	imapAddress string
 	certificate *x509.Certificate
 	privateKey  interface{}
-	mailboxes   map[string]Mailbox // recipient -> mailbox
 	domain      string
 }
 
@@ -49,7 +48,10 @@ func NewPuntoConsegnaServer(configPath string) (*PuntoConsegnaServer, error) {
 	}
 
 	// Create message store
-	messageStore := store.NewInMemoryStore()
+	var messageStore pec_storage.MessageStore
+
+	// Default to in-memory store
+	messageStore = pec_storage.NewInMemoryStore()
 
 	return &PuntoConsegnaServer{
 		config:      cfg,
@@ -58,7 +60,6 @@ func NewPuntoConsegnaServer(configPath string) (*PuntoConsegnaServer, error) {
 		imapAddress: cfg.IMAPServer,
 		certificate: cert,
 		privateKey:  key,
-		mailboxes:   make(map[string]Mailbox),
 		domain:      cfg.Domain,
 	}, nil
 }
@@ -70,7 +71,7 @@ func (s *PuntoConsegnaServer) Start() error {
 	imapBackend := common.NewIMAPBackend(s.store, s.certificate, s.privateKey)
 
 	// Start IMAP server (blocking)
-	return common.StartIMAP(s.imapAddress, imapBackend)
+	return common.StartIMAPWithTLS(s.imapAddress, imapBackend)
 }
 
 // Stop gracefully shuts down all servers
@@ -82,19 +83,10 @@ func (s *PuntoConsegnaServer) Stop() error {
 	return nil
 }
 
-func (s *PuntoConsegnaServer) RegisterMailbox(recipient string, mailbox Mailbox) {
-	if s.mailboxes == nil {
-		s.mailboxes = make(map[string]Mailbox)
-	}
-	s.mailboxes[recipient] = mailbox
-}
-
 func (s *PuntoConsegnaServer) DeliverMessage(to string, msg *message.Entity) error {
-	mailbox, exists := s.mailboxes[to]
-	if !exists || !mailbox.IsAvailable() {
-		return fmt.Errorf("mailbox for recipient %s not found or unavailable", to)
-	}
+
+	imapMsg := common.ConvertToIMAPMessage(msg)
 
 	// Deliver the message to the mailbox
-	return mailbox.DeliverMessage(msg)
+	return s.store.AddMessage(to, imapMsg)
 }

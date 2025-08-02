@@ -122,3 +122,10 @@ func GenerateMessageID(domain string) string {
 
 	return fmt.Sprintf("<%x.%d@%s>", b, time.Now().Unix(), domain)
 }
+
+// IsTransportEnvelope checks if the message is a PEC transport envelope
+func IsTransportEnvelope(msg *message.Entity) bool {
+	header := msg.Header
+	xTrasporto := header.Get("X-Trasporto")
+	return strings.ToLower(xTrasporto) == "posta-certificata"
+}

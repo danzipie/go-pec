@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/danzipie/go-pec/pec-server/internal/common"
-	"github.com/danzipie/go-pec/pec-server/store"
+	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
 )
 
 func TestNewPuntoAccessoServer(t *testing.T) {
@@ -76,7 +76,7 @@ func TestPuntoAccessoServerIntegration(t *testing.T) {
 			CertFile:   "test_cert.pem",
 			KeyFile:    "test_key.pem",
 		},
-		store:       store.NewInMemoryStore(),
+		store:       pec_storage.NewInMemoryStore(),
 		smtpAddress: "localhost:2025",
 		imapAddress: "localhost:2143",
 		certificate: nil, // Will be set by LoadSMIMECredentials

@@ -68,7 +68,7 @@ func (s *PuntoConsegnaSession) Logout() error {
 // processMessage handles the core PEC logic for a single recipient
 func (s *PuntoConsegnaSession) processMessage(msg *message.Entity, recipient string) error {
 	// Check if this is a transport envelope (busta di trasporto)
-	isTransportEnvelope := s.isTransportEnvelope(msg)
+	isTransportEnvelope := common.IsTransportEnvelope(msg)
 
 	var deliveryErr error
 	deliveryErr = nil
@@ -98,13 +98,7 @@ func (s *PuntoConsegnaSession) processMessage(msg *message.Entity, recipient str
 	return nil
 }
 
-// isTransportEnvelope checks if the message is a PEC transport envelope
-func (s *PuntoConsegnaSession) isTransportEnvelope(msg *message.Entity) bool {
-	header := msg.Header
-	xTrasporto := header.Get("X-Trasporto")
-	return strings.ToLower(xTrasporto) == "posta-certificata"
-}
-
+// SendEntity sends a message entity using SMTP
 func (s *PuntoConsegnaSession) SendEntity(receipt *message.Entity, to []string) error {
 	var w io.Writer
 	receipt.WriteTo(w)

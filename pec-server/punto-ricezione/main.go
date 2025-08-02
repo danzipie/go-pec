@@ -54,16 +54,6 @@ func (s *PuntoRicezioneServer) Start() error {
 	// Create SMTP backend
 	smtpBackend := common.NewBackend(s.signer, s.store, ReceptionPointHandler, s.config.Domain)
 
-	// Create IMAP backend
-	imapBackend := common.NewIMAPBackend(s.store, s.certificate, s.privateKey)
-
-	// Start IMAP server in a goroutine
-	go func() {
-		if err := common.StartIMAP(s.imapAddress, imapBackend); err != nil {
-			log.Printf("IMAP server error: %v", err)
-		}
-	}()
-
 	// Start SMTP server (blocking)
 	return common.StartSMTP(s.smtpAddress, s.config.Domain, smtpBackend)
 }

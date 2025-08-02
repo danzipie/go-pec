@@ -39,8 +39,8 @@ cert:
 
 # Run the server
 run: build
-	@echo "Starting Punto accesso server..."
-	@cd pec-server/punto-accesso && ./pec-punto-accesso
+	@echo "Starting Punto consegna server..."
+	@cd pec-server/punto-consegna && ./pec-punto-consegna
 
 # Install dependencies
 deps:

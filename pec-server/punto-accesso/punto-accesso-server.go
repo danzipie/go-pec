@@ -3,16 +3,15 @@ package main
 import (
 	"crypto/x509"
 	"fmt"
-	"log"
 
 	"github.com/danzipie/go-pec/pec-server/internal/common"
-	"github.com/danzipie/go-pec/pec-server/store"
+	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
 )
 
 // PuntoAccessoServer represents a complete Punto accesso server instance
 type PuntoAccessoServer struct {
 	config      *common.Config
-	store       store.MessageStore
+	store       pec_storage.MessageStore
 	signer      *common.Signer
 	smtpAddress string
 	imapAddress string
@@ -42,7 +41,7 @@ func NewPuntoAccessoServer(configPath string) (*PuntoAccessoServer, error) {
 	}
 
 	// Create message store
-	messageStore := store.NewInMemoryStore()
+	messageStore := pec_storage.NewInMemoryStore()
 
 	return &PuntoAccessoServer{
 		config:      cfg,
@@ -59,16 +58,6 @@ func NewPuntoAccessoServer(configPath string) (*PuntoAccessoServer, error) {
 func (s *PuntoAccessoServer) Start() error {
 	// Create SMTP backend
 	smtpBackend := common.NewBackend(s.signer, s.store, AccessPointHandler, s.config.Domain)
-
-	// Create IMAP backend
-	imapBackend := common.NewIMAPBackend(s.store, s.certificate, s.privateKey)
-
-	// Start IMAP server in a goroutine
-	go func() {
-		if err := common.StartIMAP(s.imapAddress, imapBackend); err != nil {
-			log.Printf("IMAP server error: %v", err)
-		}
-	}()
 
 	// Start SMTP server (blocking)
 	return common.StartSMTP(s.smtpAddress, s.config.Domain, smtpBackend)

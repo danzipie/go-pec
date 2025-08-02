@@ -1,39 +1,25 @@
-package store
+package pec_storage
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/emersion/go-imap"
 )
 
-// MessageStore defines the interface for storing and retrieving PEC messages
-type MessageStore interface {
-	// AddMessage adds a message to the store for a specific user
-	AddMessage(username string, msg *imap.Message) error
-
-	// GetMessages retrieves all messages for a specific user
-	GetMessages(username string) ([]*imap.Message, error)
-
-	// GetMessage retrieves a specific message by UID for a user
-	GetMessage(username string, uid uint32) (*imap.Message, error)
-
-	// DeleteMessage deletes a specific message by UID for a user
-	DeleteMessage(username string, uid uint32) error
-
-	// Close releases any resources used by the store
-	Close() error
-}
-
 // InMemoryStore implements MessageStore using in-memory storage
 type InMemoryStore struct {
-	mu       sync.RWMutex
-	messages map[string][]*imap.Message // key: username
+	mu           sync.RWMutex
+	messages     map[string][]*imap.Message // key: username
+	passwordHash map[string]string          // key: username
 }
 
 // NewInMemoryStore creates a new in-memory message store
 func NewInMemoryStore() *InMemoryStore {
+	fmt.Println("Using in-memory message store")
 	return &InMemoryStore{
-		messages: make(map[string][]*imap.Message),
+		messages:     make(map[string][]*imap.Message),
+		passwordHash: make(map[string]string),
 	}
 }
 
@@ -100,4 +86,29 @@ func (s *InMemoryStore) Close() error {
 	// Clear all messages
 	s.messages = make(map[string][]*imap.Message)
 	return nil
+}
+
+func (s *InMemoryStore) UserExists(username string) bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	_, exists := s.passwordHash[username]
+	return exists
+}
+
+func (s *InMemoryStore) CreateUserWithPassword(username, passwordHash string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.passwordHash[username] = passwordHash
+	s.messages[username] = make([]*imap.Message, 0)
+	return nil
+}
+
+func (s *InMemoryStore) GetUserPasswordHash(username string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	hash, exists := s.passwordHash[username]
+	if !exists {
+		return "", fmt.Errorf("user not found: %s", username)
+	}
+	return hash, nil
 }

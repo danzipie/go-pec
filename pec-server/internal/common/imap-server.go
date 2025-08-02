@@ -4,13 +4,15 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
-	"github.com/danzipie/go-pec/pec-server/store"
+	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
 	"github.com/emersion/go-imap"
 	"github.com/emersion/go-imap/backend"
 	imapserver "github.com/emersion/go-imap/server"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var (
@@ -22,12 +24,13 @@ var (
 
 // IMAPBackend implements the IMAP server backend
 type IMAPBackend struct {
-	store store.MessageStore
+	store pec_storage.MessageStore
 	cert  *x509.Certificate
 	key   interface{}
 }
 
-func NewIMAPBackend(store store.MessageStore, cert *x509.Certificate, key interface{}) *IMAPBackend {
+func NewIMAPBackend(store pec_storage.MessageStore, cert *x509.Certificate, key interface{}) *IMAPBackend {
+	fmt.Println("Creating IMAP backend")
 	return &IMAPBackend{
 		store: store,
 		cert:  cert,
@@ -36,10 +39,39 @@ func NewIMAPBackend(store store.MessageStore, cert *x509.Certificate, key interf
 }
 
 func (b *IMAPBackend) Login(connInfo *imap.ConnInfo, username, password string) (backend.User, error) {
-	// For testing, accept any username/password matching the SMTP auth
-	if username != "username" || password != "password" {
-		return nil, backend.ErrInvalidCredentials
+	log.Printf("Login attempt: %s", username)
+
+	// Check if user exists
+	if !b.store.UserExists(username) {
+		log.Printf("Creating new user: %s", username)
+
+		// Hash the provided password
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		if err != nil {
+			return nil, fmt.Errorf("failed to hash password: %v", err)
+		}
+
+		// Create user with the hashed password
+		if err := b.store.CreateUserWithPassword(username, string(hashedPassword)); err != nil {
+			return nil, fmt.Errorf("failed to create user: %v", err)
+		}
+
+		log.Printf("User created successfully: %s", username)
+	} else {
+		// User exists, verify password
+		storedHash, err := b.store.GetUserPasswordHash(username)
+		if err != nil {
+			return nil, err
+		}
+
+		// Compare the stored hash with the provided password
+		if err := bcrypt.CompareHashAndPassword([]byte(storedHash), []byte(password)); err != nil {
+			// Password doesn't match
+			log.Printf("Failed login attempt for %s: invalid password", username)
+			return nil, errors.New("invalid username or password")
+		}
 	}
+
 	return &IMAPUser{
 		username: username,
 		store:    b.store,
@@ -49,7 +81,7 @@ func (b *IMAPBackend) Login(connInfo *imap.ConnInfo, username, password string) 
 // IMAPUser represents an authenticated user
 type IMAPUser struct {
 	username string
-	store    store.MessageStore
+	store    pec_storage.MessageStore
 }
 
 func (u *IMAPUser) Username() string {
@@ -100,7 +132,7 @@ func (u *IMAPUser) Logout() error {
 type IMAPMailbox struct {
 	name     string
 	username string
-	store    store.MessageStore
+	store    pec_storage.MessageStore
 }
 
 func (m *IMAPMailbox) Name() string {
@@ -242,7 +274,38 @@ func (m *IMAPMailbox) Expunge() error {
 	return ErrNotAllowed
 }
 
-func StartIMAP(addr string, backend *IMAPBackend) error {
+// Add this new function to support direct TLS connections
+func StartIMAPWithTLS(addr string, backend *IMAPBackend) error {
+	s := imapserver.New(backend)
+	s.Addr = addr
+
+	// Create TLS config
+	tlsConfig := &tls.Config{
+		Certificates: []tls.Certificate{
+			{
+				Certificate: [][]byte{backend.cert.Raw},
+				PrivateKey:  backend.key,
+			},
+		},
+		MinVersion: tls.VersionTLS12,
+		ClientAuth: tls.NoClientCert,
+	}
+
+	s.TLSConfig = tlsConfig
+
+	log.Printf("Starting IMAP server with TLS at %v", addr)
+
+	// Listen for TLS connections directly
+	listener, err := tls.Listen("tcp", addr, tlsConfig)
+	if err != nil {
+		return err
+	}
+
+	return s.Serve(listener)
+}
+
+// Modify your existing StartIMAP function to clarify it uses STARTTLS
+func StartIMAPWithSTARTTLS(addr string, backend *IMAPBackend) error {
 	s := imapserver.New(backend)
 	s.Addr = addr
 	s.TLSConfig = &tls.Config{

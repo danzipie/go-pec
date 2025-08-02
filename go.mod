@@ -1,6 +1,8 @@
 module github.com/danzipie/go-pec
 
-go 1.23
+go 1.23.0
+
+toolchain go1.23.5
 
 require (
 	github.com/emersion/go-imap v1.2.1
@@ -14,5 +16,6 @@ require (
 require (
 	github.com/lib/pq v1.10.9 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/crypto v0.40.0 // indirect
+	golang.org/x/text v0.27.0 // indirect
 )
