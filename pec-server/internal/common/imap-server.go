@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	pec_storage "github.com/danzipie/go-pec/pec-server/internal/storage"
@@ -104,11 +105,19 @@ func (u *IMAPUser) GetMailbox(name string) (backend.Mailbox, error) {
 	if name != "INBOX" {
 		return nil, backend.ErrNoSuchMailbox
 	}
-	return &IMAPMailbox{
-		name:     name,
-		username: u.username,
-		store:    u.store,
-	}, nil
+	mailbox := &IMAPMailbox{
+		name:        name,
+		username:    u.username,
+		store:       u.store,
+		idleClients: make(map[chan struct{}]struct{}),
+	}
+
+	// Register the mailbox's NotifyUpdate as a callback for this user
+	if store, ok := u.store.(*pec_storage.InMemoryStore); ok {
+		store.RegisterNotifier(u.username, mailbox.NotifyUpdate)
+	}
+
+	return mailbox, nil
 }
 
 // CreateMailbox creates a new mailbox
@@ -133,6 +142,9 @@ type IMAPMailbox struct {
 	name     string
 	username string
 	store    pec_storage.MessageStore
+	// For IDLE support
+	idleClients map[chan struct{}]struct{}
+	idleMutex   sync.Mutex
 }
 
 func (m *IMAPMailbox) Name() string {
@@ -149,6 +161,8 @@ func (m *IMAPMailbox) Info() (*imap.MailboxInfo, error) {
 
 func (m *IMAPMailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, error) {
 	status := imap.NewMailboxStatus(m.name, items)
+	fmt.Println("Status messages for user:", m.username)
+
 	messages, err := m.store.GetMessages(m.username)
 	if err != nil {
 		return nil, err
@@ -169,12 +183,62 @@ func (m *IMAPMailbox) Status(items []imap.StatusItem) (*imap.MailboxStatus, erro
 		}
 	}
 
+	fmt.Println("Mailbox status for user:", m.username, "is", status)
+
 	return status, nil
 }
 
 func (m *IMAPMailbox) SetSubscribed(subscribed bool) error {
 	// We don't support subscription
 	return nil
+}
+
+// Implement ListenUpdates for IDLE support
+func (m *IMAPMailbox) ListenUpdates() <-chan backend.Update {
+	// Change to use the concrete type that matches what you're sending
+	ch := make(chan backend.Update, 1)
+
+	// Register this channel
+	m.idleMutex.Lock()
+	if m.idleClients == nil {
+		m.idleClients = make(map[chan struct{}]struct{})
+	}
+	updateCh := make(chan struct{}, 1)
+	m.idleClients[updateCh] = struct{}{}
+	m.idleMutex.Unlock()
+
+	// Listen for updates and convert to imap backend updates
+	go func() {
+		defer close(ch)
+		for range updateCh {
+			update := backend.MailboxUpdate{}
+			ch <- update
+		}
+	}()
+
+	return ch
+}
+
+// Implement StopListeningUpdates to clean up
+func (m *IMAPMailbox) StopListenUpdates(ch <-chan backend.Update) {
+	for c := range m.idleClients {
+		close(c)
+		delete(m.idleClients, c)
+	}
+}
+
+// Add NotifyUpdate to trigger notifications
+func (m *IMAPMailbox) NotifyUpdate() {
+	m.idleMutex.Lock()
+	defer m.idleMutex.Unlock()
+
+	for ch := range m.idleClients {
+		select {
+		case ch <- struct{}{}:
+		default:
+			// Channel buffer is full, notification already pending
+		}
+	}
 }
 
 func (m *IMAPMailbox) Check() error {
@@ -184,16 +248,50 @@ func (m *IMAPMailbox) Check() error {
 func (m *IMAPMailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.FetchItem, ch chan<- *imap.Message) error {
 	defer close(ch)
 
+	fmt.Println("Listing messages for user:", m.username)
 	messages, err := m.store.GetMessages(m.username)
+	fmt.Println("Total messages for user:", m.username, "is", len(messages))
 	if err != nil {
+		fmt.Printf("failed to get messages: %v", err)
 		return err
+	}
+
+	// Debug sequence set in detail
+	fmt.Printf("ListMessages called with uid=%v, seqSet=%v\n", uid, seqSet.String())
+
+	for i, seq := range seqSet.Set {
+		fmt.Printf("  Sequence %d: Start=%d, Stop=%d\n", i, seq.Start, seq.Stop)
+	}
+
+	// Some IMAP clients send "1:*" which means "all messages"
+	isAllMessages := false
+	for _, seq := range seqSet.Set {
+		if seq.Start == 1 && seq.Stop == 0 {
+			// This is a "1:*" sequence
+			isAllMessages = true
+			break
+		}
 	}
 
 	for i, msg := range messages {
 		seqNum := uint32(i + 1)
 
-		// Check if message is in the sequence set
-		if !seqSet.Contains(seqNum) {
+		var inSeqSet bool
+		if isAllMessages {
+			inSeqSet = true
+			fmt.Printf("Including message %d (UID %d) due to 1:* request\n", seqNum, msg.Uid)
+		} else if uid {
+			// In UID mode, check against message UID, not sequence number
+			inSeqSet = seqSet.Contains(msg.Uid)
+			fmt.Printf("UID mode: Checking message UID %d against seqSet: %v\n", msg.Uid, inSeqSet)
+		} else {
+			// In sequence mode, check against sequence number
+			inSeqSet = seqSet.Contains(seqNum)
+			fmt.Printf("Sequence mode: Checking seqNum %d against seqSet: %v\n", seqNum, inSeqSet)
+		}
+
+		if !inSeqSet {
+			fmt.Printf("Skipping message %d (UID %d), not in sequence set\n", seqNum, msg.Uid)
 			continue
 		}
 
@@ -222,6 +320,7 @@ func (m *IMAPMailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.F
 			}
 		}
 
+		fmt.Printf("Sending message %d with UID %d\n", seqNum, msg.Uid)
 		ch <- fetchedMsg
 	}
 
@@ -230,6 +329,8 @@ func (m *IMAPMailbox) ListMessages(uid bool, seqSet *imap.SeqSet, items []imap.F
 
 func (m *IMAPMailbox) SearchMessages(uid bool, criteria *imap.SearchCriteria) ([]uint32, error) {
 	var ids []uint32
+	fmt.Println("Searching messages for user:", m.username)
+
 	messages, err := m.store.GetMessages(m.username)
 	if err != nil {
 		return nil, err

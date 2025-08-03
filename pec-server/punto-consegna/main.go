@@ -80,17 +80,24 @@ func ReceiveHandler(w http.ResponseWriter, r *http.Request, s *PuntoConsegnaServ
 		return
 	}
 
+	// Extract recipient from the message headers
+	// For simplicity, we assume the recipient is in the "To" header.
+	if len(msg.Header.Get("To")) == 0 {
+		http.Error(w, "No recipient specified in the message", http.StatusBadRequest)
+		return
+	}
+
 	// TODO: extract recipient
 	session := &PuntoConsegnaSession{
 		server: s,
 	}
 
-	if session.processMessage(msg, "") != nil {
+	if session.processMessage(msg, msg.Header.Get("To")) != nil {
 		http.Error(w, "Failed to process message", http.StatusInternalServerError)
 		return
 	}
 
 	// Respond with success
 	w.WriteHeader(http.StatusOK)
-	io.WriteString(w, "Message received")
+	io.WriteString(w, "Message received for "+msg.Header.Get("To"))
 }

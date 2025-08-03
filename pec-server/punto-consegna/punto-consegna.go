@@ -75,6 +75,14 @@ func (s *PuntoConsegnaSession) processMessage(msg *message.Entity, recipient str
 	if isTransportEnvelope {
 		log.Printf("Processing transport envelope for recipient: %s", recipient)
 		deliveryErr = s.server.DeliverMessage(recipient, msg)
+	} else {
+		log.Printf("Processing regular message for recipient: %s", recipient)
+		// save the message to the store
+		imapMessage := common.ConvertToIMAPMessage(msg)
+		if err := s.server.store.AddMessage(recipient, imapMessage); err != nil {
+			return fmt.Errorf("failed to save message: %w", err)
+		}
+
 	}
 
 	if deliveryErr != nil {

@@ -2,6 +2,7 @@ package pec_storage
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/emersion/go-imap"
@@ -12,6 +13,10 @@ type InMemoryStore struct {
 	mu           sync.RWMutex
 	messages     map[string][]*imap.Message // key: username
 	passwordHash map[string]string          // key: username
+
+	// For IDLE notifications
+	notifiers   map[string]func() // key: username, value: notification function
+	notifiersMu sync.RWMutex
 }
 
 // NewInMemoryStore creates a new in-memory message store
@@ -23,15 +28,43 @@ func NewInMemoryStore() *InMemoryStore {
 	}
 }
 
-// AddMessage implements MessageStore.AddMessage
+// Register a notifier for a mailbox
+func (s *InMemoryStore) RegisterNotifier(username string, notify func()) {
+	s.notifiersMu.Lock()
+	defer s.notifiersMu.Unlock()
+
+	if s.notifiers == nil {
+		s.notifiers = make(map[string]func())
+	}
+	s.notifiers[username] = notify
+}
+
+// Update AddMessage to trigger notifications
 func (s *InMemoryStore) AddMessage(username string, msg *imap.Message) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, ok := s.messages[username]; !ok {
-		s.messages[username] = make([]*imap.Message, 0)
+	to := username
+	if i := strings.Index(username, "@"); i > 0 {
+		to = username[:i] // Take only the part before @
 	}
-	s.messages[username] = append(s.messages[username], msg)
+
+	if _, ok := s.messages[to]; !ok {
+		s.messages[to] = make([]*imap.Message, 0)
+	}
+	s.messages[to] = append(s.messages[to], msg)
+
+	fmt.Println("Message added for user:", to, "Total messages:", len(s.messages[to]))
+
+	// Trigger notification
+	s.notifiersMu.RLock()
+	notify := s.notifiers[to]
+	s.notifiersMu.RUnlock()
+
+	if notify != nil {
+		go notify() // Call notification function
+	}
+
 	return nil
 }
 
@@ -40,6 +73,9 @@ func (s *InMemoryStore) GetMessages(username string) ([]*imap.Message, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	fmt.Println("Retrieving messages for user:", username)
+
+	fmt.Println("Total messages for user:", username, "is", len(s.messages[username]))
 	if msgs, ok := s.messages[username]; ok {
 		return msgs, nil
 	}
