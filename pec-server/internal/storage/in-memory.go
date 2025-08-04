@@ -13,6 +13,7 @@ type InMemoryStore struct {
 	mu           sync.RWMutex
 	messages     map[string][]*imap.Message // key: username
 	passwordHash map[string]string          // key: username
+	nextUID      map[string]uint32
 
 	// For IDLE notifications
 	notifiers   map[string]func() // key: username, value: notification function
@@ -25,6 +26,8 @@ func NewInMemoryStore() *InMemoryStore {
 	return &InMemoryStore{
 		messages:     make(map[string][]*imap.Message),
 		passwordHash: make(map[string]string),
+		nextUID:      make(map[string]uint32),
+		notifiers:    make(map[string]func()),
 	}
 }
 
@@ -51,10 +54,33 @@ func (s *InMemoryStore) AddMessage(username string, msg *imap.Message) error {
 
 	if _, ok := s.messages[to]; !ok {
 		s.messages[to] = make([]*imap.Message, 0)
+		s.nextUID[to] = 1 // Start UIDs at 1 for new mailboxes
 	}
+
+	// Assign a sequential UID
+	msg.Uid = s.nextUID[to]
+	s.nextUID[to]++
+
+	// Assign sequence number based on position
+	msg.SeqNum = uint32(len(s.messages[to]) + 1)
+
+	// Set \Recent flag if not already present
+	hasRecent := false
+	for _, flag := range msg.Flags {
+		if flag == imap.RecentFlag {
+			hasRecent = true
+			break
+		}
+	}
+	if !hasRecent {
+		msg.Flags = append(msg.Flags, imap.RecentFlag)
+	}
+
+	// Add message to mailbox
 	s.messages[to] = append(s.messages[to], msg)
 
-	fmt.Println("Message added for user:", to, "Total messages:", len(s.messages[to]))
+	fmt.Printf("Message added for user: %s, Total messages: %d, UID: %d, SeqNum: %d\n",
+		to, len(s.messages[to]), msg.Uid, msg.SeqNum)
 
 	// Trigger notification
 	s.notifiersMu.RLock()

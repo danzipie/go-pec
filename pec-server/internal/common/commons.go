@@ -71,6 +71,7 @@ func ExtractRecipients(headers *mail.Header) []string {
 
 // Helper function to convert message.Entity to imap.Message
 func ConvertToIMAPMessage(entity *message.Entity) *imap.Message {
+
 	msg := &imap.Message{
 		Envelope: &imap.Envelope{
 			Date:    time.Now(),
@@ -79,7 +80,7 @@ func ConvertToIMAPMessage(entity *message.Entity) *imap.Message {
 			To:      []*imap.Address{{HostName: entity.Header.Get("To")}},
 		},
 		Body:         make(map[*imap.BodySectionName]imap.Literal),
-		Flags:        []string{imap.SeenFlag},
+		Flags:        []string{imap.RecentFlag},
 		InternalDate: time.Now(),
 		Uid:          uint32(time.Now().Unix()),
 	}
